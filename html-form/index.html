@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>web audio api music player v0.3</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <div class="main-box">
+    <div class="time-box">
+      <div class="time-box-name"></div>
+      <div class="time-box-time"></div>
+      <div class="time-box-background">
+        <div class="time-box-meter"></div>
+        <div class="time-box-circle"></div>
+      </div>
+    </div>
+    <div class="menu-box">
+      <button class="menu-play"><img src="menu-play.png" alt=""></button>
+      <button class="menu-pause"><img src="menu-pause.png" alt=""></button>
+      <button class="menu-stop"><img src="menu-stop.png" alt=""></button>
+    </div>
+    <div class="advance-box">
+      <div class="equalizer-box-70hz">
+        <div class="equalizer-box-70hz-meter"></div>
+        <div class="equalizer-box-70hz-circle"></div>
+        <div class="box-text">70</div>
+      </div>
+      <div class="equalizer-box-150hz">
+        <div class="equalizer-box-150hz-meter"></div>
+        <div class="equalizer-box-150hz-circle"></div>
+        <div class="box-text">150</div>
+      </div>
+      <div class="equalizer-box-300hz">
+        <div class="equalizer-box-300hz-meter"></div>
+        <div class="equalizer-box-300hz-circle"></div>
+        <div class="box-text">300</div>
+      </div>
+      <div class="equalizer-box-600hz">
+        <div class="equalizer-box-600hz-meter"></div>
+        <div class="equalizer-box-600hz-circle"></div>
+        <div class="box-text">600</div>
+      </div>
+      <div class="equalizer-box-1500hz">
+        <div class="equalizer-box-1500hz-meter"></div>
+        <div class="equalizer-box-1500hz-circle"></div>
+        <div class="box-text">1.5k</div>
+      </div>
+      <div class="equalizer-box-3000hz">
+        <div class="equalizer-box-3000hz-meter"></div>
+        <div class="equalizer-box-3000hz-circle"></div>
+        <div class="box-text">3k</div>
+      </div>
+      <div class="equalizer-box-6000hz">
+        <div class="equalizer-box-6000hz-meter"></div>
+        <div class="equalizer-box-6000hz-circle"></div>
+        <div class="box-text">6k</div>
+      </div>
+      <div class="equalizer-box-12000hz">
+        <div class="equalizer-box-12000hz-meter"></div>
+        <div class="equalizer-box-12000hz-circle"></div>
+        <div class="box-text">12k</div>
+      </div>
+      <div class="echo-box-echo">
+        <div class="echo-box-echo-meter"></div>
+        <div class="echo-box-echo-circle"></div>
+        <div class="box-text">echo</div>
+      </div>
+      <div class="echo-box-feedback">
+        <div class="echo-box-feedback-meter"></div>
+        <div class="echo-box-feedback-circle"></div>
+        <div class="box-text">fb</div>
+      </div>
+      <div class="echo-box-convolver">
+        <div class="echo-box-convolver-meter"></div>
+        <div class="echo-box-convolver-circle"></div>
+        <div class="box-text">con</div>
+      </div>
+      <div class="master-box-volume">
+        <div class="master-box-volume-meter"></div>
+        <div class="master-box-volume-circle"></div>
+        <div class="box-text">vol</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+<script>
+// web audio api
+let audioContext = new AudioContext()
+let fileName = 'Devilish - 08 - Stage 5 - Seaside.mp3'
+let audio = new Audio(fileName)
+audio.loop = true
+
+// button을 눌렀을 때 동작하는 함수들...
+let playButton = document.querySelector('.menu-play')
+playButton.addEventListener('click', () => {
+  audioContext.resume()
+  audio.play()
+})
+
+let pauseButton = document.querySelector('.menu-pause')
+pauseButton.addEventListener('click', () => {
+  audio.pause()
+})
+
+let stopButton = document.querySelector('.menu-stop')
+stopButton.addEventListener('click', () => {
+  audioContext.suspend()
+  audio.pause()
+  audio.currentTime = 0
+})
+
+
+// 오디오 컨텍스트를 간편하게 관리하기 위한 팩토리 메소드
+let audioBox = createAudioBox()
+function createAudioBox () {
+  const setHz = [70, 150, 300, 600, 1500, 3000, 6000, 12000] // 기분 hz 값
+  let audioElement = audioContext.createMediaElementSource(audio)
+  let startGain = audioContext.createGain() // 시작 지점의 게인
+  
+  // equalizer gain and filter
+  let hzGain = []
+  let hzFilter = []
+
+  // echo effect
+  let echoGain = audioContext.createGain()
+  echoGain.gain.value = 0.25
+  let echoDelay = audioContext.createDelay(1)
+  echoDelay.delayTime.value = 0.25
+  let echoFeedbackGain = audioContext.createGain()
+  echoFeedbackGain.gain.value = 0.25
+  let echoConvolver = audioContext.createConvolver()
+  let echoConvolverGain = audioContext.createGain()
+  echoConvolverGain.gain.value = 0.5
+  let echoConvolverBuffer = audioContext.createBuffer(1, 48000, 48000)
+  echoConvolver.buffer = echoConvolverBuffer
+  let editBuffer = echoConvolverBuffer.getChannelData(0)
+  for (let i = 0; i < editBuffer.length; i++) {
+    // convolver buffer를 설정할 때 단순히 Math.random() 으로 하게되면,
+    // audio의 일부분을 재생할 때 문제가 되는것을 확인했습니다.
+    // 따라서 밑의 공식을 사용해 주세요.
+    editBuffer[i] = (1 - (Math.random() * 2)) * (1 - (i / editBuffer.length))
+  }
+  
+  // master gain
+  let masterGain = audioContext.createGain()
+
+  // equalizer setting
+  // 각 주파수별로 gain과 filter를 제작합니다.
+  // 그 다음, 완성된 필터와 게인을 마스터 게인에 연결합니다.
+  for (let i = 0; i < 8; i++) {
+    hzGain.push(audioContext.createGain())
+    hzFilter.push(audioContext.createBiquadFilter())
+    hzGain[i].gain.value = 0.5
+    hzFilter[i].frequency.value = setHz[i]
+    hzFilter[i].type = 'bandpass'
+
+    startGain.connect(hzFilter[i]).connect(hzGain[i]).connect(masterGain) 
+  }
+
+  // audioContext link
+  // 오디오는 시작게인에 연결되고, 그다음 여러 이펙트들에게 연결되고 마지막엔 마스터게인에 연결됩니다.
+  audioElement.connect(startGain)
+  startGain.connect(echoDelay).connect(echoGain).connect(masterGain)
+  echoDelay.connect(echoFeedbackGain).connect(echoDelay)
+  startGain.connect(echoConvolver).connect(echoConvolverGain).connect(masterGain)
+  masterGain.connect(audioContext.destination)
+  
+  // 이퀄라이저를 쉽게 수정하기 위한 함수
+  // hzGain[i].gain.value를 통해서도 직접 값을 변경할 수 있지만, 그 과정은 직관적이지 않음.
+  // 편의상 hz에 배열의 인덱스를 넣는것도 허용함.
+  // 가급적이면 percent함수로 넣는것을 추천...
+  let setEqualizer = function (hzOrIndex, gain) {
+    if (gain >= 2) gain = 2
+
+    // hzOrIndex가 배열의 길이를 넘으면 hz값 형태로 인식하게 만듬.
+    let setHzIndex = hzOrIndex > hzGain.length ? setHz.indexOf(hzOrIndex) : hzOrIndex
+    if (setHzIndex != -1) {
+      hzGain[setHzIndex].gain.value = gain
+    }
+  }
+  let setEqualizerPercent = function (hzOrIndex, percent) {
+    if (percent >= 200) percent = 200
+    let inputGain = (percent / 100)
+    setEqualizer(hzOrIndex, inputGain)
+  }
+
+  // 에코볼륨을 쉽게 수정하기 위한 함수
+  // echoGain, echoFeedbackGain, echoVonvolverGain을 통해서도 수정할 수 있지만... 귀찮다.
+  let setEcho = function (type, gain) {
+    if (gain >= 1) gain = 1
+
+    switch (type) {
+      case 'echo': echoGain.gain.value = gain; break
+      case 'feedback': echoFeedbackGain.gain.value = gain; break
+      case 'convolver': echoConvolverGain.gain.value = gain; break
+    }
+  }
+  let setEchoPercent = function (type, percent) {
+    if (percent >= 200) percent = 200
+
+    let inputGain = (percent / 100)
+    if (type === 'echo' || type === 'feedback') {
+      inputGain *= 0.5
+    }
+    setEcho(type, inputGain)
+  }
+
+  // 마스터게인
+  let setMasterGain = function (gain) {
+    if (gain >= 2) gain = 2
+    masterGain.gain.value = gain
+  }
+  let setMasterGainPercent = function (percent) {
+    percent = percent * 2
+
+    if (percent >= 200) percent = 200
+    let inputGain = (percent / 100)
+    setMasterGain(inputGain)
+  }
+
+  return {
+    // 솔직히 말하면, setEqualizer, setEcho, setMasterGain만 리턴해도 되는데... 디버그용으로 남겨둠.
+    startGain: startGain,
+    audioElement: audioElement,
+    hzGain: hzGain,
+    hzFilter: hzFilter,
+    echoGain: echoGain,
+    echoDelay: echoDelay,
+    echoFeedbackGain: echoFeedbackGain,
+    echoConvolverGain: echoConvolverGain,
+    masterGain: masterGain,
+    setEqualizer: setEqualizer,
+    setEqualizerPercent: setEqualizerPercent,
+    setEcho: setEcho,
+    setEchoPercent: setEchoPercent,
+    setMasterGain: setMasterGain,
+    setMasterGainPercent: setMasterGainPercent
+  }
+}
+
+
+// timeBox 관련 변수들...
+let timeBoxTime = document.querySelector('.time-box-time')
+let timeBoxMeter = document.querySelector('.time-box-meter')
+let timeBoxBackground = document.querySelector('.time-box-background')
+let timeBoxCircle = document.querySelector('.time-box-circle')
+let timeBoxName = document.querySelector('.time-box-name')
+timeBoxName.textContent = fileName
+
+
+// 시간박스의 값 변경을 허용하는지 알아보는 변수입니다.
+// 마우스 클릭을 하거나 클릭을 한 상태에서 드래그하면 시간박스의 값 변경을 허용합니다.
+timeBoxBackground.isChange = false
+timeBoxBackground.addEventListener('mousedown', (e) => {
+  timeBoxBackground.isChange = true
+  if (timeBoxBackground.isChange) {
+    timeBoxMeterChange(e.offsetX)
+  }
+})
+timeBoxBackground.addEventListener('touchstart', (e) => {
+  timeBoxBackground.isChange = true
+  // torchEvent는 offsetX, offsetY가 없기 때문에 event.target.getBoundingClientRect()를 통해
+  // 사각형의 값을 얻어온 후에, 다음과 같은 계산을 해야 합니다.
+  // offsetX = e.touches[0].clientX - rect.left
+  // 참고: 이 예제는 스크롤을 사용하지 않아서 pageOffsetX를 계산하지 않았습니다.
+  const rect = e.target.getBoundingClientRect()
+  if (timeBoxBackground.isChange) {
+    timeBoxMeterChange(e.touches[0].clientX - rect.left)
+  }
+})
+timeBoxBackground.addEventListener('mousemove', (e) => {
+  if (timeBoxBackground.isChange) {
+    timeBoxMeterChange(e.offsetX)
+  }
+})
+timeBoxBackground.addEventListener('touchmove', (e) => {
+  const rect = e.target.getBoundingClientRect()
+  if (timeBoxBackground.isChange) {
+    timeBoxMeterChange(e.touches[0].clientX - rect.left)
+  }
+})
+timeBoxBackground.addEventListener('mouseup', () => {
+  timeBoxBackground.isChange = false
+})
+timeBoxBackground.addEventListener('touchend', (e) => {
+  timeBoxBackground.isChange = false
+})
+
+// 타임박스의 미터변경을 시도한다면, 오디오의 재생 위치가 변경됩니다.
+function timeBoxMeterChange (mouseOffsetX) {
+  let percent = mouseOffsetX / timeBoxBackground.clientWidth
+  audio.currentTime = (audio.duration * percent)
+}
+
+function timeBoxMeterDisplay () {
+  // 원래는 getComputedStyle을 이용해서 직접 css width 값을 불러왔으나
+  // 생각해보니까 부모의 position이 relative라 %값만 가지고도 div의 위치를 조정할 수가 있어
+  // 기존 코드를 삭제하고 %값 으로만 css의 위치값을 변경하였습니다.
+  let percent = (audio.currentTime / audio.duration) * 100
+
+  // timeboxcircle의 (width percent / 2)의 값 (이 %값은 getComputedStyle로 가져올 수 없음.)
+  // inline css를 쓴다면 모르겠으나, css파일로 작성한탓에, %값을 가져올 수 없어 수동으로 집적 값을 넣었습니다.
+  const CIRCLE_HALF_PERCENT = 1
+  const CIRCLE_WIDTH_PERCENT = 2
+  // CIRCLE_HALF_PERCENT는 circle의 위치를 조정하기 위한 %값을 정의하는 변수입니다.
+  // 막대바의 중앙에 위치해야 하기 때문에 circle_width % 값을 2로 나눈값을 퍼센트로 적용하였습니다.
+  // value / 2 = 중심값
+  // 그리고, 정해진 div의 영역을 초과할 수 없게 하기 위해, 
+  // circlePercent의 값은 100 - CIRCLE_WIDTH_PERCENT 을 초과할 수 없습니다.
+  // 즉, 100%을 초과하면 안됩니다. 0% 미만도 안됩니다.
+  let circlePercent = percent - CIRCLE_HALF_PERCENT
+  if (circlePercent > 100 - CIRCLE_WIDTH_PERCENT) {
+    circlePercent = 100 - CIRCLE_WIDTH_PERCENT
+  } else if (circlePercent < 0) {
+    circlePercent = 0
+  }
+
+  // 계산한 위치값을 css의 style을 통해 수정합니다.
+  timeBoxCircle.style.left = circlePercent + '%'
+  timeBoxMeter.style.width = percent + '%'
+}
+
+function timeBoxNameDisplay () {
+  // 실시간 텍스트 내용의 변경
+  let percent = (audio.currentTime / audio.duration) * 100
+  let outputText = `${audio.currentTime.toFixed(2)} / ${audio.duration.toFixed(2)} (${percent.toFixed(2)}%)`
+  timeBoxTime.textContent = outputText
+}
+
+// 오디오박스의 값을 자동으로 변경합니다.
+function audioBoxAutoChange () {
+  for (let i = 0; i < equalizerBox.length; i++) {
+    audioBox.setEqualizerPercent(i, equalizerBox[i].getMeterPercent())
+  }
+
+  audioBox.setEchoPercent('echo', echoBoxEcho.getMeterPercent())
+  audioBox.setEchoPercent('feedback', echoBoxFeedback.getMeterPercent())
+  audioBox.setEchoPercent('convolver', echoBoxConvolver.getMeterPercent())
+  audioBox.setMasterGainPercent(masterBox.getMeterPercent())
+}
+
+// 화면에 출력할 내용을 실시간으로 표시합니다. 
+function animation () {
+  timeBoxMeterDisplay()
+  timeBoxNameDisplay()
+  audioBoxAutoChange()
+
+  requestAnimationFrame(animation) // requestAnimation 함수는 재귀호출을 해야 실시간으로 함수를 불러올 수 있습니다.
+}
+requestAnimationFrame(animation)
+
+
+/*
+react와 vue.js 버전을 만들고나니 생각해봤는데, equalizer-box, echo-box, master-box 는 같은 형태이고,
+이것을 한개의 컴포넌트로 관리하여, 코드 길이를 절약하고 관리하기 쉬워졌습니다.
+그런데 javascript로도 이것을 구현할 수 있기 때문에, meterBox 자바스크립트 객체를 새로 만들게 되었습니다.
+*/
+
+// boxText를 사용한다면, HTML구조 자체를 많이 바꿔야 합니다.
+// 새로운 css 선택자도 추가해야합니다. 그렇기 때문에 이 코드에서는 boxText를 사용하지 않습니다.
+// css 선택자 방식으로 DOM 객체를 가져오므로, className 맨 앞에 . 이 추가로 붙습니다.
+function MeterBox (boxType, boxValue) {
+  let className = '.' + boxType + '-' + boxValue
+  let meterBox = document.querySelector(className) // 상자 쿼리
+  let meterBoxMeter = document.querySelector(className + '-' + 'meter') // 미터 쿼리
+  let meterBoxCircle = document.querySelector(className + '-' + 'circle') // 서클 쿼리(원모양막대)
+  let meterPercent = 50 // 미터의 퍼센트 값
+  let isChange = false
+
+  meterBox.addEventListener('mousedown', (e) => {
+    meterBox.isChange = true
+    divBoxValueChange(meterBox, meterBoxMeter, meterBoxCircle, e.offsetY)
+    meterPercent = parseFloat(meterBoxMeter.style.height)
+  })
+  meterBox.addEventListener('mousemove', (e) => {
+    if (meterBox.isChange) {
+      divBoxValueChange(meterBox, meterBoxMeter, meterBoxCircle, e.offsetY)
+      meterPercent = parseFloat(meterBoxMeter.style.height)
+    }
+  })
+  meterBox.addEventListener('mouseup', (e) => {
+    meterBox.isChange = false
+  })
+  meterBox.addEventListener('touchstart', (e) => {
+    meterBox.isChange = true
+    const rect = e.target.getBoundingClientRect()
+    divBoxValueChange(meterBox, meterBoxMeter, meterBoxCircle, event.touches[0].clientY - rect.top)
+    meterPercent = parseFloat(meterBoxMeter.style.height)
+  })
+  meterBox.addEventListener('touchmove', (e) => {
+    if (meterBox.isChange) {
+      const rect = e.target.getBoundingClientRect()
+      divBoxValueChange(meterBox, meterBoxMeter, meterBoxCircle, event.touches[0].clientY - rect.top)
+      meterPercent = parseFloat(meterBoxMeter.style.height)
+    }
+  })
+  meterBox.addEventListener('touchend', (e) => {
+    meterBox.isChange = false
+  })
+
+  return {
+    getMeterPercent: function () {
+      return meterPercent
+    }
+  }
+}
+
+// 이퀄라이저 객체 변수를 생성합니다.
+// css 쿼리를 불러오는데 반복되는 구문이 많아 반복문으로 코드길이를 줄였습니다.
+let equalizerBox = createEqualizerBox()
+function createEqualizerBox () {
+  const setHz = [70, 150, 300, 600, 1500, 3000, 6000, 12000] // 이퀄라이저의 기본 hz 값입니다.
+  let meterBox = []
+  for (let i = 0; i < setHz.length; i++) {
+    meterBox.push(MeterBox('equalizer-box', setHz[i] + 'hz'))
+  }
+
+  return meterBox
+}
+
+// 에코 객체 변수, 불러오는 방식은 이퀄라이저랑 동일
+let echoBoxEcho = MeterBox('echo-box', 'echo')
+let echoBoxFeedback = MeterBox('echo-box', 'feedback')
+let echoBoxConvolver = MeterBox('echo-box', 'convolver')
+
+// 마스터 볼륨
+let masterBox = MeterBox('master-box', 'volume')
+
+
+// 사용자가 마우스클릭을 한 후에, div 객체의 css 크기 값을 변경합니다.
+function divBoxValueChange(box, meter, circle, mouseOffsetY) {
+  // 값이 1 - (mouseOffsetY / box.clientHeight) 인 이유는 아래서부터 그래프값이 증가해야 하기 때문입니다.
+  let percent = (1 - (mouseOffsetY / box.clientHeight)) * 100
+
+  // CIRCLE_HEIGHT_PERCENT의 값은 css파일에 작성되어있어서, 사용자가 직접 수동으로 값을 넣었습니다.
+  const CIRCLE_HEIGHT_PERCENT = 10
+  const CIRCLE_HEIGHT_HALF_PERCENT = 5
+  let circlePercent = percent - CIRCLE_HEIGHT_HALF_PERCENT
+
+  // 퍼센트가 0미만일경우 오류가 발생하는 경우가 있어, 퍼센트가 0미만이 되지 않도록 했습니다.
+  // 그리고 퍼센트의 값이 100을 초과하지 않도록 했습니다.
+  if (percent >= 100) {
+    percent = 100
+  } else if (percent <= 0) {
+    percent = 0
+  }
+
+  // circle의 위치가 box 영역을 초과할 수 없도록 보정합니다.
+  if (circlePercent >= 100 - CIRCLE_HEIGHT_PERCENT) {
+    circlePercent = 100 - CIRCLE_HEIGHT_PERCENT
+  } else if (circlePercent <= 0) {
+    circlePercent = 0
+  }
+
+  meter.style.height = percent + '%'
+  circle.style.bottom = circlePercent + '%'
+}
+</script>
