@@ -12,7 +12,7 @@
   <h2>web audio player?</h2>
   <p>
     이것은, javascript로 만든 web audio player를, react, vuejs버전으로 각각 만든것입니다.<br>
-    코드 사이트는 이곳을 참고: <a href="https://github.com/skz1024/web-audio-api-my-project"> </a> <br>
+    코드는 이곳을 참고: <a href="https://github.com/skz1024/web-audio-api-my-project"> github page </a> <br>
     각 페이지마다 음악이 다른건 신경쓰지 마세요.
     여기에 올려져 있는 파일은 build 파일입니다.
   </p>
@@ -21,5 +21,14 @@
     <li><a href="react-build/index.html"> react-app </a></li>
     <li><a href="vue-dist/index.html"> vue-app </a></li>
   </ul>
+  <!--
+     html page는 따로 설정없이 바로 github.io 페이지에서 실행이 가능합니다.
+     그러나 react, vue.js 는 추가적인 설정을 해야 github.io페이지에 표시할 수 있습니다.
+     
+     react는 package.json에 홈페이지 주소 경로를 추가해줘야 합니다.
+     
+     vue.js 는 vue.config.js 파일을 생성한 뒤 
+     module.exports = { publicPath: '여기에 프로젝트 루트 경로 입력' } 를 해야합니다.
+  -->
 </body>
 </html>
