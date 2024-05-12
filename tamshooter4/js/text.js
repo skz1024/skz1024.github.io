@@ -65,7 +65,24 @@ export class systemText {
   }
 
   static gameError = {
-
+    FILED_LOAD_ERROR: 'fieldData가 호환되지 않거나 잘못되어 이 데이터를 불러올 수 없습니다. 메인 화면으로 이동합니다.',
+    LOAD_JSON_ERROR: 'Load Error: 세이브 데이터가 JSON 형식과 다릅니다.',
+    LOAD_ERROR_MESSAGE1: '세이브 데이터가 손상되거나 잘못되었습니다.',
+    LOAD_ERROR_MESSAGE2: '게임을 실행할 수 없습니다.',
+    LOAD_ERROR_MESSAGE3: '이 오류가 계속 발생하면, 로컬스토리지의 데이터를 삭제해주세요.',
+    LOAD_ERROR_MESSAGE4: 'START 버튼 또는 ENTER 키를 10번 누르면 게임 데이터를 삭제하고 새로고침',
+    LOAD_ERROR_MESSAGE5: 'The save data is corrupted or invalid.',
+    LOAD_ERROR_MESSAGE6: 'The game could not be executed.',
+    LOAD_ERROR_MESSAGE7: 'If this error continues, please delete the data from the local storage.',
+    LOAD_ERROR_MESSAGE8: 'Delete and refresh game data by pressing the START button or ENTER key 10 times',
+    LOAD_ERROR_DATA_DELETE_COMPLETE1: '게임 초기화 완료. 1초 후 자동으로 페이지 새로고침',
+    LOAD_ERROR_DATA_DELETE_COMPLETE2: 'Game initialization complete. Automatically refresh page after 1 second',
+    SAVE_NUMBER_DECODE_ERROR: 'saveSystemError: 잘못된 형식의 JSON 데이터.',
+    SAVE_DIGIT_NOT_CORRECT: 'saveSystemError: 세이브 데이터가 잘못된 형식입니다.',
+    USER_SRAM_ERROR: 'user 데이터에 오류가 발생했습니다. 이 데이터를 사용할 수 없습니다.',
+    LOAD_USERLEVEL_ERROR: 'incorrect user level or exp, this data not used.',
+    LOAD_PLAYTIME_ERROR: 'play time is NaN, not correct number type',
+    LOAD_STARTDATE_ERROR: 'start date is Nan, not correct number type',
   }
 
   static fieldError = {

@@ -1,10 +1,25 @@
+//@ts-check
+
 /**
  * HTML의 canvas의 2d contex를 사용하기 위한 함수.
  * 
- * 참고로 직접적인 context를 이용한 접근은 하지 말아주세요.
+ * 참고로 클래스 내부에 있는 context를 이용한 접근은 하지 말아주세요.
  * graphicSystem에 있는 함수를 사용하는게 좋습니다. (그래야 유지보수 및 관리가 편합니다.)
  */
 export class GraphicSystem {
+  /** 그래픽 시스템에서 사용하는 기본 폰트의 사이즈 */
+  static DEFAULT_FONT_SIZE = '20px'
+
+  /** 그래픽 시스템에서 사용하는 폰트의 기본값 */
+  static DEFAULT_FONT = 'arial'
+
+  /** 모노스페이스 폰트 출력 */
+  static MONOSPACE_FONT = 'Courier'
+
+  // 널 체크 무시 용도로 사용 (클래스 생성할때 해당 값이 무조건 대입됨)
+  /** @type {CanvasRenderingContext2D} */
+  context
+
   /**
    * 그래픽을 출력할 수 있는 캔버스를 만듭니다.
    * 
@@ -16,10 +31,9 @@ export class GraphicSystem {
    * 
    * @param {number} canvasWidth 캔버스 너비
    * @param {number} canvasHeight 캔버스 높이
-   * @param {string} resourceSrc 탐사엔진이 있는 외부 리소스의 경로 HTML 파일에 따라 상대경로가 변경되므로, 
    * 이 값을 제대로 입력해야 내장 이미지를 제대로 출력할 수 있습니다.
    */
-  constructor (canvasWidth = 400, canvasHeight = 300, resourceSrc = '') {
+  constructor (canvasWidth = 400, canvasHeight = 300) {
     /** 
      * 이미지 캐시 저장 용도 (src로 이미지를 출력할 때 여기서 가져옵니다.)
      * @type {Map<string, HTMLImageElement>}
@@ -39,28 +53,35 @@ export class GraphicSystem {
     /** @constant 캔버스의 높이의 절반, 또는 캔버스 높이의 중간지점 (정수로 취급) */
     this.CANVAS_HEIGHT_HALF = Math.floor(this.CANVAS_HEIGHT / 2)
 
-    /** 
-     * 캔버스의 2d 그래픽 콘텍스트
-     */
-    this.context = this.canvas.getContext('2d')
-    if (this.context == null) {
-      console.warn('잘못된 콘텍스트 형식')
-      return
-    }
+    let context = this.canvas.getContext('2d')
+    if (context != null) this.context = context
 
     // 그래픽 초기화
     // 텍스트 베이스라인을 top으로 수정(기본이 alphabet이며 alphabet은 y축 위치가 이상함)
     this.context.textBaseline = 'top'
 
     // 캔버스 폰트 출력에 대한 기본값 설정 (다만 폰트가 없을경우, 다른 폰트가 사용될 수 있음.)
-    // 이 폰트는 윈도우만 가지고 있음.
     // 폰트의 pixel은 20px로 정의됩니다.
-    this.context.font = '20px 바탕체'
+    this.context.font = GraphicSystem.DEFAULT_FONT
+ 
+    /** 일반 폰트 설정용 */
+    this._fontName = GraphicSystem.DEFAULT_FONT
+    
+    /** 고정폭 폰트 설정용 */
+    this._fontNameMonospace = GraphicSystem.MONOSPACE_FONT
 
-    /** 폰트의 기본 사이즈 (이 값을 변경하지 마세요.)
-     * @type {number} 
-     */
-    this.FONT_SIZE = 20
+    /**  폰트의 사이즈 (monospace랑 공유됨) @type {number} */
+    this._fontSize = 20
+
+    /** context에 입력될 font의 최종 문자 */
+    this._fontNameResult = ''
+
+    /** context에 입력될 monospace font의 최종 문자열 */
+    this._fontNameMonospaceResult = ''
+
+    // 기본 폰트 자동 설정
+    this.setFont(this._fontName)
+    this.setMonoscopeFont(this._fontNameMonospace)
 
     // 캔버스의 초기 상태를 저장.
     this.context.save()
@@ -70,16 +91,18 @@ export class GraphicSystem {
      * 
      * 캔버스에 전역적 적용. 다만 일부 함수는 이 값을 직접 지정할 수 있어서 캔버스의 수정은 비추천
      */ 
-    this.flip = 0
+    this._flip = 0
 
     /** 
      * 이미지 회전 각도 (0 ~ 360)
      * 
      * 캔버스에 전역적 젹용, 다만 일부 함수는 이 값을 직접 지정할 수 있어서 캔버스의 수정은 비추천
      */ 
-    this.rotateDegree = 0
+    this._rotateDegree = 0
 
-    this.baseImageAutoSet(resourceSrc)
+    /** 배경출력용 오프스크린 캔버스 */
+    this.offCanvas = new OffscreenCanvas(this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    this.offContext = this.offCanvas.getContext('2d')
   }
 
   /** 
@@ -102,6 +125,7 @@ export class GraphicSystem {
    * 
    * 없을 경우 가져오지 않음.
    * @param {string} imageSrc 이미지 파일의 경로
+   * @returns {HTMLImageElement | undefined}
    */
   getImage (imageSrc) {
     return this.cacheImage.get(imageSrc)
@@ -139,7 +163,7 @@ export class GraphicSystem {
     let totalCount = 0
     for (let i = 0; i < src.length; i++) {
       let image = this.getCacheImage(src[i])
-      if (image.complete) {
+      if (image != null && image.complete) {
         totalCount++
       }
     }
@@ -147,23 +171,9 @@ export class GraphicSystem {
     return totalCount
   }
 
-  /**
-   * 그래픽 시스템에서 static 변수에 사용되는 이미지를 지정하기 위한 함수
-   * 
-   * 이 함수는 이 js파일을 불러오는 즉시 실행됩니다.
-   * 
-   * 경고: 이 함수가 초기에 실행되지 않으면 bitmapFont, digitalFont는 그려지지 않습니다. (이미지가 없으므로)
-   * 
-   * @param {string} resourceSrc 리소스의 기준 경로 (HTML 파일에 따라 달라지므로 지정 필요)
-   */
-  baseImageAutoSet (resourceSrc) {
-    /** graphicSystem 내부적으로 사용하는 비트맵 (영어, 숫자, 일부 기호만 지원) */
-    this.bitmapFont = {
-      image: new Image(),
-      baseWidth: 8,
-      baseHeight: 11
-    }
-    this.bitmapFont.image.src = resourceSrc + 'bitmapFont.png'
+  /** 현재까지 cacheImage에 등록된 모든 이미지의 entries를 가져옵니다. */
+  getAllLoadImage () {
+    return this.cacheImage.entries()
   }
 
   /**
@@ -183,7 +193,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    */
   setFlip (flip = 0) {
     if (flip >= 0 && flip <= 3) {
-      this.flip = flip
+      this._flip = flip
     }
   }
 
@@ -195,9 +205,9 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    */
   setDegree (degree = 0) {
     if (degree >= 0 && degree <= 360) {
-      this.rotateDegree = degree
+      this._rotateDegree = degree
     } else {
-      this.rotateDegree = degree % 360
+      this._rotateDegree = degree % 360
     }
   }
 
@@ -209,8 +219,12 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * @param {number} value 0 ~ 1 사이의 값 (0: 투명, 1: 불투명), 이 이외는 무시
    */
   setAlpha (value = 1) {
-    if (this.context != null && value >= 0 && value <= 1) {
+    if (value >= 0 && value <= 1) {
       this.context.globalAlpha = value
+    } else if (value <= 0) {
+      this.context.globalAlpha = 0
+    } else if (value >= 1) {
+      this.context.globalAlpha = 1
     }
   }
 
@@ -251,7 +265,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 이 값이 true라면, displayTransform이 실행됩니다.
    */
   checkTransform () {
-    if (this.flip || this.rotateDegree) {
+    if (this._flip || this._rotateDegree) {
       return true
     } else {
       return false
@@ -264,7 +278,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 
    * 리턴된 output 좌표 및 크기값을 무시하고 x, y좌표 및 크기를 그대로 사용하게 되면, 예상하지 못한 출력을 할 수 있습니다.
    * 
-   * 이 함수에서는 설정값을 조절할 수 없습니다. 해당 값을 변경하려면 setFlip, setRotate, setAlpha를 사용해주세요.
+   * 이 함수에서는 캔버스 변형 설정값을 조절할 수 없습니다. 해당 값을 변경하려면 setFlip, setRotate, setAlpha를 사용해주세요.
    * 
    * graphicSystem 내부에서 사용하는 함수이므로, 직접적으로 이 함수를 호출하면 안됩니다.
    * @param {number} x
@@ -280,18 +294,18 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
     let outputWidth = width
     let outputHeight = height
 
-    if (this.rotateDegree) {
+    if (this._rotateDegree) {
       const centerX = x + (width / 2)
       const centerY = y + (height / 2)
-      const radian = Math.PI / 180 * this.rotateDegree
+      const radian = Math.PI / 180 * this._rotateDegree
       this.context.translate(centerX, centerY) // 회전할 객체의 중심 위치로 캔버스의 중심 좌표를 변경
       this.context.rotate(radian) // 라디안 값만큼 회전(참고: 각도 값을 라디안으로 변환해야 함)
 
-      if (this.flip === 1) {
+      if (this._flip === 1) {
         this.context.scale(-1, 1) // x축의 크기를 반대로
-      } else if (this.flip === 2) {
+      } else if (this._flip === 2) {
         this.context.scale(1, -1) // y축의 크기를 반대로
-      } else if (this.flip === 3) {
+      } else if (this._flip === 3) {
         this.context.scale(-1, -1) // x축 y축 다 반대로
       }
 
@@ -302,15 +316,15 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
       outputWidth = width
       outputHeight = height
     } else {
-      if (this.flip === 1) { // flip 값이 vertical일경우
+      if (this._flip === 1) { // flip 값이 vertical일경우
         this.context.scale(-1, 1) // x축의 크기를 반대로
         outputWidth = -width // x축을 반전시킨탓에, 실제 출력할때도 반대로 값을 넣어서 출력해야합니다. (양수와 음수가 서로 바뀌듯이)
         outputX = -x // 출력 위치도 -x로 변환됩니다.
-      } else if (this.flip === 2) { // 이하 방향빼고 나머지 동일
+      } else if (this._flip === 2) { // 이하 방향빼고 나머지 동일
         this.context.scale(1, -1) // y축의 크기를 반대로
         outputHeight = -height
         outputY = -y
-      } else if (this.flip === 3) {
+      } else if (this._flip === 3) {
         this.context.scale(-1, -1) // x축 y축 다 반대로
         outputWidth = -width
         outputX = -x
@@ -320,10 +334,10 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
     }
 
     return {
-      x: outputX,
-      y: outputY,
-      width: outputWidth,
-      height: outputHeight
+      x: Math.floor(outputX),
+      y: Math.floor(outputY),
+      width: Math.floor(outputWidth),
+      height: Math.floor(outputHeight)
     }
   }
 
@@ -333,79 +347,8 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 이 함수를 실행하면, flip과 rotateDegree의 값은 0으로 변경됩니다. (이후에 실행되는 회전 및 변형을 방지하기 위해서)
    */
   restoreTransform () {
-    if (this.context == null) return
-
     this.context.restore()
     this.setFlipDegreeAlpha()
-  }
-
-  /**
-   * 내장되어있는 비트맵 font (bitmapFont2.png) 파일을 이용해서 글자를 출력합니다.
-   * 
-   * 아스키 코드만 지원(한글 사용불가능), 대소문자는 구분됩니다.
-   * 
-   * 경고2: 크기를 늘릴 경우, 안티에일리싱 효과로 글자주위에 선이 칠해지는 경우가 있음.
-   * @param {number | string} inputText 출력할 텍스트
-   * @param {number} x x좌표
-   * @param {number} y y좌표
-   * @param {number} wordWidth 글자길이 (기본값 8px, 권장값 16px), 8의 배수로 확대 권장
-   * @param {number} wordHeight 글자높이 (기본값 11px, 권장값 22px), 11의 배수로 확대 권장
-   */
-  bitmapFontDisplay (inputText, x = 0, y = 0, wordWidth = this.bitmapFont.baseWidth, wordHeight = this.bitmapFont.baseHeight) {
-    if (inputText == null) return
-
-    // 숫자가 들어올경우, string 형태로 변경 (그래야 조작하기 쉬움)
-    if (typeof inputText === 'number') inputText = inputText + ''
-
-    const image = this.bitmapFont.image
-    const BITMAP_WIDTH = this.bitmapFont.baseWidth
-    const BITMAP_HEIGHT = this.bitmapFont.baseHeight
-
-    // 변형이 확인된경우, 캔버스를 변형하고 출력좌표를 변경합니다.
-    if (this.checkTransform()) {
-      const output = this.canvasTransform(x, y, wordWidth, wordHeight)
-      x = output.x
-      y = output.y
-      wordWidth = output.width
-      wordHeight = output.height
-    }
-
-    const firstWordPosition = ' '.charCodeAt()
-    const lineMaxXPostition = Math.floor(image.width / this.bitmapFont.baseWidth)  // 비트맵에는 한줄당 최대 32개 글자 데이터가 있습니다.
-
-    // 첫번째 글자부터 마지막글자까지 하나씩 출력합니다.
-    for (let i = 0; i < inputText.length; i++) {
-      const word = inputText.charAt(i)
-      let wordPosition = -1 // 0 ~ 32
-      let wordLine = 0 // 0 ~ 3
-
-      wordPosition = word.charCodeAt(0) - firstWordPosition
-
-      // 워드포지션이 32를 넘어가면, 다른 줄로 변경해서 출력할 글자를 찾습니다.
-      if (wordPosition >= lineMaxXPostition) {
-        wordLine = Math.floor(wordPosition / lineMaxXPostition)
-        wordPosition = wordPosition % 32
-      }
-
-      if (wordPosition >= 0) {
-        this.context.drawImage(
-          image, 
-          BITMAP_WIDTH * wordPosition, 
-          BITMAP_HEIGHT * wordLine, 
-          BITMAP_WIDTH - 1, // 1을 빼는 이유는 확대/축소 했을 때 안티에일러싱 효과로 인해 잘못된 선이 출력되는걸 막기 위함
-          BITMAP_HEIGHT - 1, 
-          x + (i * wordWidth), 
-          y, 
-          wordWidth - Math.floor(wordWidth / BITMAP_WIDTH), // 일부 길이 값을 빼는것은 확대/축소 했을 때 정확한 출력을 보정하기 위함
-          wordHeight - Math.floor(wordWidth / BITMAP_HEIGHT)
-        )
-      }
-    }
-
-    // 출력이 끝났고, 캔버스가 변형되었다면 변형을 취소합니다.
-    if (this.checkTransform()) {
-      this.restoreTransform()
-    }
   }
 
   /** 
@@ -456,7 +399,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
         wordHeight = output.height
       }
   
-      const firstWordPosition = ' '.charCodeAt()
+      const firstWordPosition = ' '.charCodeAt(0)
       const lineMaxXPostition = Math.floor(image.width / baseWordWidth) // 비트맵에는 한줄당 최대 32개 글자 데이터가 있습니다.
   
       // 첫번째 글자부터 마지막글자까지 하나씩 출력합니다.
@@ -570,36 +513,32 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 자바스크립트는 오버로딩이 되지 않기 때문에, 9 ~ 12개의 인수를 기준으로 한 imageDisplay를 구분하기 위해 만들어졌습니다.
    * (다만 내부적으로는 imageDisplay는 3, 5개의 인수도 처리할 수 있습니다. 왜냐하면 drawImage 함수가 그만큼의 인수를 지원하기 때문)
    * 
-   * @param {string | HTMLImageElement} image 이미지의 경로 또는 이미지 객체
+   * @param {string | HTMLImageElement | OffscreenCanvas | ImageBitmap} imageSrc 이미지의 경로 또는 이미지 객체
    * @param {number} x  x좌표
    * @param {number} y  y좌표
-   * @param {number | null} width 이미지의 너비 (없을경우 해당 이미지의 기본 너비)
-   * @param {number | null} height 이미지의 높이 (없을경우 해당 이미지의 기본 높이)
+   * @param {number | null | undefined} width 이미지의 너비 (없을경우 해당 이미지의 기본 너비)
+   * @param {number | null | undefined} height 이미지의 높이 (없을경우 해당 이미지의 기본 높이)
    * @param {number[]} options 기타 옵션 (flip, rotate, alpha) 참고: 이값을 설정했다면, imageDisplay 함수를 사용합니다.
    */
-  imageView (image, x, y, width = null, height = null, ...options) {
-    if (typeof image === 'string') {
-      image = this.getCacheImage(image)
-    }
+  imageView (imageSrc, x, y, width = undefined, height = undefined, ...options) {
+    let getImage = typeof imageSrc === 'string' ? this.getCacheImage(imageSrc) : imageSrc
+    if (getImage == null || getImage.width === 0) return
     
-    if (image == null) return
-
     // width, height 채우기 (함수 인수로 넣을 수도 있으나, image가 null일경우 에러가 발생하므로, 이렇게 처리함)
-    if (width == null) width = image.width
-    if (height == null) height = image.height
+    if (width == null || width === 0) width = getImage.width
+    if (height == null || height === 0) height = getImage.height
 
     if (options.length !== 0) {
-      this.imageExpandDisplay(image, 0, 0, image.width, image.height, x, y, width, height, ...options)
+      this._imageExpandDisplay(getImage, 0, 0, getImage.width, getImage.height, x, y, width, height, ...options)
     } else {
       if (this.checkTransform()) {
         const output = this.canvasTransform(arguments[1], arguments[2], width, height)
-        this.context.drawImage(image, Math.floor(output.x), Math.floor(output.y), Math.floor(output.width), Math.floor(output.height))
+        this.context.drawImage(getImage, output.x, output.y, output.width, output.height)
         this.restoreTransform()
       } else {
-        this.context.drawImage(image, x, y, width, height)
+        this.context.drawImage(getImage, x, y, width, height)
       }
     }
-
   }
 
   /**
@@ -610,7 +549,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 함수의 표시된 인수 목록은 9개 기준이며 최대 12개까지 지정 가능합니다.
    * 인수가 10개 ~ 12개 사이일경우, 플립, 회전, 알파값을 추가로 수정할 수 있습니다. 옵션이 설정될경우, 캔버스의 설정값은 무시됩니다.
    * (해당 이미지에만 적용)
-   * @param {string | HTMLImageElement} image 이미지의 경로 또는 이미지 객체
+   * @param {string | HTMLImageElement | OffscreenCanvas | ImageBitmap} imageSrc 이미지의 경로 또는 이미지 객체
    * @param {number} sliceX 이미지를 자르기 위한 이미지 내부의 x좌표
    * @param {number} sliceY 이미지를 자르기 위한 이미지 내부의 y좌표
    * @param {number} sliceWidth 이미지를 자르는 길이
@@ -621,26 +560,28 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * @param {number} height 출력할 높이
    * @param {number[]} option 추가 옵션: flip(0: none, 1: vertical, 2: horizontal, 3:all), rotate(0 ~ 360), alpha(0 ~ 1)
    */
-  imageDisplay (image, sliceX, sliceY, sliceWidth, sliceHeight, x, y, width, height, ...option) {
-    if (typeof image === 'string') {
-      image = this.getCacheImage(image)
-    }
+  imageDisplay (imageSrc, sliceX = 0, sliceY = 0, sliceWidth, sliceHeight, x = 0, y = 0, width = 1, height = 1, ...option) {
+    let getImage = typeof imageSrc === 'string' ? this.getCacheImage(imageSrc) : imageSrc
 
-    if (image == null) return
+    // 참고: 이미지의 크기가 0이면 이미지가 정상적으로 로드된게 아니므로, 이미지 출력을 무시합니다.
+    if (getImage == null || getImage.width === 0) return
 
-    if (arguments.length === 3 || arguments.length === 5) {
-      this.imageView(image, sliceX, sliceY, sliceWidth, sliceHeight)
+    // 이미지 출력 (만약, 인수의 수가 3개 또는 5개라면 imageView 함수로 대신 출력합니다. )
+    if (arguments.length === 3) {
+      this.imageView(getImage, sliceX, sliceY)
+    } else if (arguments.length === 5) {
+      this.imageView(getImage, sliceX, sliceY, sliceWidth, sliceHeight)
     } else if (arguments.length === 9) {
       if (this.checkTransform()) {
         const output = this.canvasTransform(x, y, width, height)
-        this.context.drawImage(image, Math.floor(sliceX), Math.floor(sliceY), Math.floor(sliceWidth), Math.floor(sliceHeight), Math.floor(output.x), Math.floor(output.y), Math.floor(output.width), Math.floor(output.height))
+        this.context.drawImage(getImage, Math.floor(sliceX), Math.floor(sliceY), Math.floor(sliceWidth), Math.floor(sliceHeight), Math.floor(output.x), Math.floor(output.y), Math.floor(output.width), Math.floor(output.height))
         this.restoreTransform()
       } else {
-        this.context.drawImage(image, Math.floor(sliceX), Math.floor(sliceY), Math.floor(sliceWidth), Math.floor(sliceHeight), Math.floor(x), Math.floor(y), Math.floor(width), Math.floor(height))
+        this.context.drawImage(getImage, Math.floor(sliceX), Math.floor(sliceY), Math.floor(sliceWidth), Math.floor(sliceHeight), Math.floor(x), Math.floor(y), Math.floor(width), Math.floor(height))
       }
     } else if (arguments.length >= 10 && arguments.length <= 12) {
       // 함수의 내용이 길어 따로 분리
-      this.imageExpandDisplay(image, sliceX, sliceY, sliceWidth, sliceHeight, x, y, width, height, ...option)
+      this._imageExpandDisplay(getImage, sliceX, sliceY, sliceWidth, sliceHeight, x, y, width, height, ...option)
     } else {
       throw new Error(GraphicSystem.errorMessage.IMAGE_DISPLAY_ARGUMENT_ERROR)
     }
@@ -652,8 +593,19 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 참고: scale은 width, height를 수정해서 처리하세요.
    * 
    * imageDisplay랑 받는 인수가 같으므로, 가급적이면 imageDisplay의 함수를 사용해주세요.
+   * 
+   * @param {HTMLImageElement | OffscreenCanvas | ImageBitmap} image 이미지의 경로 또는 이미지 객체
+   * @param {number} sliceX 이미지를 자르기 위한 이미지 내부의 x좌표
+   * @param {number} sliceY 이미지를 자르기 위한 이미지 내부의 y좌표
+   * @param {number} sliceWidth 이미지를 자르는 길이
+   * @param {number} sliceHeight 이미지를 자르는 높이
+   * @param {number} x 출력할 x좌표
+   * @param {number} y 출력할 y좌표
+   * @param {number} width 출력할 길이
+   * @param {number} height 출력할 높이
+   * @param {number[]} option 추가 옵션: flip(0: none, 1: vertical, 2: horizontal, 3:all), rotate(0 ~ 360), alpha(0 ~ 1)
    */
-  imageExpandDisplay (image, sliceX, sliceY, sliceWidth, sliceHeight, x, y, width, height, ...option) {
+  _imageExpandDisplay (image, sliceX, sliceY, sliceWidth, sliceHeight, x, y, width, height, ...option) {
     // 현재 캔버스의 상태를 저장. 이렇게 하는 이유는, 캔버스의 설정을 너무 많이 바꿔 현재 상태를 저장하지 않으면 원래대로 되돌리기 어렵기 때문
     this.context.save()
     let flip = 0
@@ -669,7 +621,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
     if (option.length >= 1 && option[0] >= 0 && option[0] <= 3) {
       flip = option[0]
     } else {
-      flip = this.flip
+      flip = this._flip
     }
 
     // rotate
@@ -679,7 +631,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
         rotate = rotate % 360
       }
     } else {
-      rotate = this.rotateDegree
+      rotate = this._rotateDegree
     }
 
     // alpha (없을 경우 글로벌 알파값 적용)
@@ -731,52 +683,6 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
     this.context.globalAlpha = alpha // 알파값 수정
     this.context.drawImage(image, Math.floor(sliceX), Math.floor(sliceY), Math.floor(sliceWidth), Math.floor(sliceHeight), Math.floor(outputX), Math.floor(outputY), Math.floor(outputWidth), Math.floor(outputHeight))
     this.context.restore() // 캔버스를 이전 상태로 복원
-  }
-
-  /**
-   * 해당 함수는 다른 함수로 변경할 예정입니다.
-   * 
-   * 그라디언트를 그리는 함수, 다만 createLinearGradient를 사용하는것과 비교해 옵션이 제한되어있습니다.
-   * @param {number} x 그라디언트 시작점의 x좌표
-   * @param {number} y 그라디언트 시작점의 y좌표
-   * @param {number} width 그라디언트 길이
-   * @param {number} height 그라디언트 높이
-   * @param {string} startColor 그라디언트 시작 색깔의 css값
-   * @param {string} endColor 그라디언트 끝 색깔의 css값 (anotherColor가 추가되어도 끝 색깔은 끝부분에 적용됩니다.)
-   * @param {anotherColor} anotherColor 또다른 컬러들... (그라디언트를 여러개의 색상으로 만들 때 사용, 단 이 값은 중간에 들어가는 색입니다.)
-   * 
-   * @deprecated
-   */
-  gradientDisplay (x, y, width, height, startColor = 'black', endColor = startColor, ...anotherColor) {
-    // 그라디언트 backGround
-    let gradient
-    try {
-      gradient = this.context.createLinearGradient(x, y, x + width, y + height)
-
-      gradient.addColorStop(0, startColor)
-      gradient.addColorStop(1, endColor)
-
-      // 또다른 컬러도 있다면 추가
-      for (let i = 0; i < anotherColor.length; i++) {
-        let totalColorCount = 2 + anotherColor.length
-        let position = (1 / totalColorCount) * (i + 1)
-        gradient.addColorStop(position, anotherColor[i])
-      }
-
-      // 그라디언트 그리기
-      this.context.fillStyle = gradient
-      if (this.checkTransform()) {
-        const output = this.canvasTransform(x, y, width, height)
-        this.context.fillRect(output.x, output.y, output.width, output.height)
-        this.restoreTransform()
-      } else {
-        this.context.fillRect(x, y, width, height)
-      }
-    } catch (e) {
-      alert(e)
-    }
-
-    
   }
 
   /**
@@ -879,41 +785,6 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
   }
 
   /**
-   * 미터 형태로(전체 값중 일부만큼 비율에 맞춰서 출력) 그라디언트 그리기
-   * 그려지는 크기는 현재 값 / 최대 값 을 계산한 비율입니다. 즉 10%비율이면, 총 크기의 10%만 그려집니다.
-   * 
-   * 이 함수는 제거될 예정입니다.
-   * 
-   * 이 함수는 내부적으로 gradientDisplay 함수를 사용합니다.
-   * @deprecated
-   * @param {number} x x좌표
-   * @param {number} y y좌표
-   * @param {number} width 너비 (최대 값 기준)
-   * @param {number} height 높이 (최대 값 기준)
-   * @param {number} value 현재 값
-   * @param {number} maxValue 최대 값
-   * @param {string | number} meterType 미터 타입 (수직: 0 or 'vertical', 수평: 1 or 'horizontal)
-   * @param {string} startColor 시작 색깔
-   * @param {string} endColor 끝 색깔 (경고: 이 색은 여러개의 색깔이 더 추가되어도, 가장 마지막 색으로 지정됨.)
-   * @param  {string[]} anotherColor 추가 색깔 (경고: 이 색은 마지막 색이 될 수 없음.)
-   */
-  meterGradient (x, y, width, height, value, maxValue, meterType, startColor, endColor, ...anotherColor) {
-    let percent = value / maxValue
-
-    // 받아온 미터 타입이 숫자라면, 문자열로 변경
-    if (typeof meterType === 'number') {
-      let setType = ['vertical', 'horizontal']
-      meterType = setType[meterType]
-    }
-
-    switch (meterType) {
-      case 'vertical': this.gradientDisplay(x, y, width, Math.floor(height * percent), startColor, endColor, ...anotherColor); break
-      case 'horizontal': this.gradientDisplay(x, y, Math.floor(width * percent), height, startColor, endColor, ...anotherColor); break
-      default: console.log('잘못된 값 입력!, meterType은 vertical 또는 horizontal입니다. 그라디언트 출력은 무시됩니다.'); break
-    }
-  }
-
-  /**
    * 미터 형태로 사각형을 그립니다. 전체 값의 일정 비율만큼만 사각형을 그릴 수 있습니다.
    * 그리고 색깔을 배열형태로 여러개 설정할 경우 그라디언트 형태로 출력할 수 있습니다.
    * 
@@ -928,10 +799,10 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * @param {number} value 기준이 되는 현재 값
    * @param {number} maxValue 기준이 되는 최대 값
    * @param {boolean} isVertical 방향설정: 기본값은 수평, true일경우 수평, false일경우 수직
-   * @param {string | string[]} backgroundColor 배경색(배열로 2개 이상의 값을 전달하면 그라디언트 효과 적용), 값이 비어있으면 무시, 배열로 전달하면 값이 있는것으로 간주함. 
+   * @param {string | string[]} borderColor 배경색(배열로 2개 이상의 값을 전달하면 그라디언트 효과 적용), 값이 비어있으면 무시, 배열로 전달하면 값이 있는것으로 간주함. 
    * @param {number} borderLength 배경색의 테두리 길이(단 사각형의 너비와 높이를 초과하지 않음), 테두리가 길어지면 배경이 차지하는 영역이 넓어짐
    */
-  meterRect (x, y, width, height, color = 'black', value, maxValue = value, isVertical = true, backgroundColor = '', borderLength = 0) {
+  meterRect (x, y, width, height, color = 'black', value, maxValue = value, isVertical = true, borderColor = '', borderLength = 0) {
     // 비율 값 계산. 최대값이 0이면, 0으로 나누기 문제가 발생하므로, 0퍼센트로 처리함.
     // 그리고, 퍼센트 결과가 0과 1사이가 되도록 조정(0%미만 100%를 초과할 수 없습니다.)
     let percent = maxValue === 0 ? 0 : value / maxValue
@@ -948,11 +819,14 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
     outputHeight -= borderLength
 
     // 배경색 출력(배열로 지정되거나, 값이 정해진 경우), 배경은 전체가 칠해집니다.
-    if (Array.isArray(backgroundColor)) {
-      this.gradientRect(x, y, width, height, backgroundColor, isVertical)
-    } else if (backgroundColor !== '') {
-      this.fillRect(x, y, width, height, backgroundColor)
+    if (Array.isArray(borderColor)) {
+      this.gradientRect(x, y, width, height, borderColor, isVertical)
+    } else if (borderColor !== '') {
+      this.fillRect(x, y, width, height, borderColor)
     }
+
+    // 해당 값이 0인경우, 미터는 출력하지 않습니다.
+    if (percent <= 0) return
 
     // 일반 영역 출력 (참고: 배경색이 없어도 border가 계산되니 주의하세요.)
     if (Array.isArray(color)) {
@@ -991,6 +865,9 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * 
    * 내부적으로는 meterRect의 함수를 사용합니다.
    * 
+   * 이 함수의 사용은 권장하지 않습니다. 대신 meterRect 함수를 사용해주세요.
+   * 
+   * @deprecated
    * @param {{x: number, y: number, width: number, height: number}} rect 사각형
    * @param {{color: string | string[], value: number, maxValue: number, 
    * isVertical: boolean, backgroundColor: string | string[], boarderLength: number}} option 
@@ -1078,14 +955,49 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
   }
 
   /**
-   * canvas의 font를 수정합니다.
-   * 참고: font의 값은 이런 형태입니다. -> font = '24px 바탕체' -> 24px 바탕체
-   * 아무것도 설정하지 않는다면 기본값은 20px 바탕체입니다.
-   * @param {string} fontText
+   * canvas의 font를 수정합니다. (폰트 사이즈에 알맞춰 수정됨)
+   * 
+   * 아무것도 설정하지 않는다면 그래픽 시스템에 지정된 기본값을 사용합니다.
+   * @param {string} font 폰트 이름
+   * @param {number | undefined} fontSize 폰트의 크기 (단위: px), 설정하지 않으면 사이즈 변경하지 않음. monospace랑 같은 크기 공유
    */
-  setCanvasFont (fontText = '20px 바탕체') {
-    this.context.font = fontText
+  setFont (font = GraphicSystem.DEFAULT_FONT, fontSize = undefined) {
+    this._fontName = font
+    if (fontSize) this._fontSize = fontSize
+    this._fontNameResult = this._fontSize + 'px ' + this._fontName
   }
+
+  /**
+   * canvas의 monospace font를 수정합니다.
+   * @param {string} font 폰트 이름 (폰트가 monospace인지를 구분하지는 않지만, 그렇다고 다른 형태의 폰트를 넣지마세요.)
+   * @param {number | undefined} fontSize 폰트의 크기 (단위: px), 설정하지 않으면 사이즈 변경하지 않음. font랑 같은 크기 공유
+   */
+  setMonoscopeFont (font, fontSize = undefined) {
+    this._fontNameMonospace = font
+    if (fontSize) this._fontSize = fontSize
+    this._fontNameMonospaceResult = this._fontSize + 'px ' + this._fontNameMonospace
+  }
+
+  /**
+   * 캔버스에 사용할 폰트의 크기 입력
+   * 
+   * 이 설정은 monospace폰트랑 공유됩니다.
+   * @param {number} fontSize 폰트의 크기 (단위: px)
+   */
+  setFontSize (fontSize) {
+    this._fontSize = fontSize
+    this._fontNameResult = this._fontSize + 'px ' + this._fontName
+    this._fontNameMonospaceResult = this._fontSize + 'px ' + this._fontNameMonospace
+  }
+
+  /** 캔버스의 폰트를 얻습니다.*/
+  getCanvasFont () { return this._fontName }
+
+  /** 캔버스의 모노스페이스(고정폭) 폰트를 얻습니다. */
+  getCanvasFontMonospace () { return this._fontNameMonospace }
+
+  /** 캔버스 폰트의 크기를 얻습니다. */
+  getCanvasFontSize () { return this._fontSize }
 
   /**
    * context.fillText랑 동일: 텍스트를 출력합니다.
@@ -1096,14 +1008,67 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
    * @param {number | null} maxWidth 해당 텍스트 출력의 최대길이(옵션), null일경우 사용하지 않음.
    */
   fillText (text = '', x, y, color = 'black', maxWidth = null) {
+    // this.setCanvasFont(GraphicSystem.DEFAULT_FONT)
+    // this.context.font = '16px NaNum'
     this.context.fillStyle = color
+    this.context.font = this._fontNameResult
 
     if (this.checkTransform()) {
       const textWidth = this.context.measureText(text)
-      const output = this.canvasTransform(x, y, textWidth, parseInt(this.context.font))
+      const output = this.canvasTransform(x, y, textWidth.width, this._fontSize)
+      if (this._rotateDegree === 0) {
+        if (maxWidth != null) {
+          // text flip은 width, height랑 접근 방식이 다릅니다.
+          // 원본 위치 그대로 출력하기 위해서는 추가적인 공식을 사용해야 합니다.
+          if (this._flip === 0 || this._flip === 1) this.context.fillText(text, output.x + output.width, output.y, maxWidth)
+          else if (this._flip === 2) this.context.fillText(text, output.x, output.y - this._fontSize, maxWidth)
+          else if (this._flip === 3) this.context.fillText(text, output.x + output.width, output.y - this._fontSize, maxWidth)
+        } else {
+          if (this._flip === 0 || this._flip === 1) this.context.fillText(text, output.x + output.width, output.y)
+          else if (this._flip === 2) this.context.fillText(text, output.x, output.y - this._fontSize)
+          else if (this._flip === 3) this.context.fillText(text, output.x + output.width, output.y - this._fontSize)
+        }
+      } else if (this._rotateDegree !== 0) {
+        this.context.fillText(text, output.x, output.y)
+      }
+      this.restoreTransform()
+    } else {
       if (maxWidth != null) {
-        this.context.fillText(text, output.x, output.y, maxWidth)
+        this.context.fillText(text, x, y, maxWidth)
       } else {
+        this.context.fillText(text, x, y)
+      }
+    }
+  }
+
+  /**
+   * 모노스페이스(고정폭) 글꼴로 출력합니다.
+   * @param {string} text 텍스트
+   * @param {number} x 출력할 x좌표
+   * @param {number} y 출력할 y좌표
+   * @param {string} color 색깔: 없으면 검정색이 기본값
+   * @param {number | null} maxWidth 해당 텍스트 출력의 최대길이(옵션), null일경우 사용하지 않음.
+   */
+  fillTextMonospace (text = '', x, y, color = 'black', maxWidth = null) {
+    this.context.fillStyle = color
+    this.context.font = this._fontNameMonospaceResult
+
+    if (this.checkTransform()) {
+      const textWidth = this.context.measureText(text)
+      const output = this.canvasTransform(x, y, textWidth.width, this._fontSize)
+      if (this._rotateDegree === 0) {
+        if (maxWidth != null) {
+          // text flip은 width, height랑 접근 방식이 다릅니다.
+          // 원본 위치 그대로 출력하기 위해서는 추가적인 공식을 사용해야 합니다.
+          if (this._flip === 0 || this._flip === 1) this.context.fillText(text, output.x + output.width, output.y, maxWidth)
+          else if (this._flip === 2) this.context.fillText(text, output.x, output.y - this._fontSize, maxWidth)
+          else if (this._flip === 3) this.context.fillText(text, output.x + output.width, output.y - this._fontSize, maxWidth)
+        } else {
+          if (this._flip === 0 || this._flip === 1) this.context.fillText(text, output.x + output.width, output.y)
+          else if (this._flip === 2) this.context.fillText(text, output.x, output.y - this._fontSize)
+          else if (this._flip === 3) this.context.fillText(text, output.x + output.width, output.y - this._fontSize)
+        }
+      } else if (this._rotateDegree !== 0) {
         this.context.fillText(text, output.x, output.y)
       }
       this.restoreTransform()
@@ -1136,8 +1101,10 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
   }
 
   /**
-   * 선을 그립니다. (안타깝게도... 곡선은 내가 어떻게 그리는지 모름...)
-   * 선은 캔버스의 변형에 영향을 받지 않습니다.
+   * 선을 그립니다.
+   * 
+   * 선은 캔버스의 변형에 영향을 받지 않습니다. 따라서 회전을 해야 한다면, 대신 fillRect를 사용해주세요.
+   * 
    * @param {number} x1 첫번째 지점의 x좌표
    * @param {number} y1 첫번째 지점의 y좌표
    * @param {number} x2 두번째 지점의 x좌표
@@ -1156,7 +1123,7 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
   }
 
   /**
-   * 참고: 이 함수는 fillRect처럼 출력합니다. (따라서, x, y좌표는 중심좌표가 아닙니다.)
+   * 참고: 이 함수는 fillRect처럼 출력합니다. (따라서, x, y좌표는 원의 중심좌표가 아니라 원의 출력 좌표입니다.)
    * @param {number} x 
    * @param {number} y 
    * @param {number} width 
@@ -1242,6 +1209,148 @@ imageDisplay function need to arguments only 3, 5, 9, 10 ~ 12.`
     } else {
       this.canvas.style.width = '100%'
       this.canvas.style.height = '100%'
+    }
+  }
+
+  /** backgroundDisplay에서 사용하는 옵션 목록 */
+  optionBG = {
+    /** 이미지 크기와의 상관없이 이미지를 캔버스 사이즈로 채운 후 출력합니다. */ FILL: 'fill',
+    /** 이미지가 크기가 작은경우, 타일 형태로 출력합니다. 이미지 크기가 큰 경우 그대로 출력합니다.  */ TILE: 'tile',
+    /** 이미지 크기가 작은경우 이미지를 늘립니다. 이미지 크기가 큰 경우 그대로 출력합니다. */ NORMAL: 'normal'
+  }
+
+  /**
+   * 이미지를 배경으로 출력합니다. 스크롤 형태의 출력을 지원합니다.
+   * 
+   * (다만, 스크롤 배경을 사용하기 위해서는 imageStartX, imageStartY를 지속적으로 변경해야 합니다.)
+   * 
+   * @param {string | HTMLImageElement | OffscreenCanvas | ImageBitmap} imageSrc 이미지의 경로
+   * @param {number} imageStartX 이미지 파일 내부의 시작 x좌표 (해당 좌표부터 출력하여 계속 스크롤됨)
+   * @param {number} imageStartY 이미지 파일 내부의 시작 y좌표 (해당 좌표부터 출력하여 계속 스크롤됨)
+   * @param {string} option 이미지 출력 옵션: 자세한것은 GraphicSystem.optionBG 내부의 값을 참조
+   */
+  backgroundDisplay (imageSrc = '', imageStartX = 0, imageStartY = 0, option = this.optionBG.NORMAL) {
+    // 이미지가 문자열일경우, 캐시된 이미지를 가져옵니다. 아닐경우 해당 이미지를 그대로 대입합니다.
+    const image = typeof imageSrc === 'string' ? this.getCacheImage(imageSrc) : imageSrc
+    if (image == null || image.width === 0) return
+    if (this.offContext == null) return
+
+    let imageWidth = image.width
+    let imageHeight = image.height
+    const canvasWidth = this.canvas.width
+    const canvasHeight = this.canvas.height
+
+    /** 이미지가 캔버스보다 작으면 이미지를 채워야하므로 이미지를 확대하기 위한 배율을 계산해야함
+     * 그러나 이미지가 캔버스보다 큰 경우 확대를 할 필요가 없으므로 배율은 1
+     */
+    const multipleWidth = imageWidth < canvasWidth ? canvasWidth / imageWidth : 1
+    const multipleHeight = imageWidth < canvasWidth ? canvasHeight / imageHeight : 1
+
+    /**  
+     * 결과 이미지
+     * 
+     * 이미지를 채움으로 표현하거나, 크기가 캔버스보다 작을경우, 이미지를 캔버스사이즈에 맞춰서 다시 생성합니다.
+     */
+    let resultImage
+    if (option === this.optionBG.FILL || imageWidth < canvasWidth || imageHeight < canvasHeight) {
+      this.offContext.drawImage(image, 0, 0, canvasWidth, canvasHeight)
+      resultImage = this.offCanvas
+      imageWidth = canvasWidth
+      imageHeight = canvasHeight
+    } else {
+      resultImage = image
+    }
+
+    // 이미지의 시작점이 이미지의 너비 초과 또는 음수일경우, 이미지 X 좌표 변경
+    if (imageStartX > imageWidth) {
+      imageStartX = imageStartX % imageWidth
+    } else if (imageStartX < 0) {
+      imageStartX = imageWidth - Math.abs(imageStartX % imageWidth)
+    }
+
+    // 이미지의 시작점이 이미지의 높이 초과 또는 음수인경우, 이미지 Y 좌표 변경
+    if (imageStartY > imageHeight) {
+      imageStartY = imageStartY % imageHeight
+    } else if (imageStartY < 0) {
+      imageStartY = imageHeight - Math.abs(imageStartY % imageHeight)
+    }
+
+    if (imageStartX === 0 && imageStartY === 0) {
+      // 백그라운드의 좌표가 (0, 0) 일 때
+      // 참고: 이미지 크기를 전부 출력하는것이 아닌, 캔버스의 크기로만 출력됩니다.
+      // 캔버스보다 이미지가 작다면 나머지 부분은 그려지지 않습니다.
+      this.imageDisplay(resultImage, 0, 0, canvasWidth, canvasHeight, imageStartX, imageStartY, canvasWidth, canvasHeight)
+    } else if (imageStartX !== 0 && imageStartY === 0) {
+      // x축 좌표가 0이 아니고 y축 좌표가 0일 때 (수평 스크롤)
+      // 만약 x축과 출력길이가 이미지 길이를 초과하면 배경을 2번에 나누어 출력됩니다.
+      if (imageStartX + canvasWidth >= imageWidth) {
+        const screenAStart = multipleWidth !== 1 ? Math.round(imageStartX * multipleWidth) : imageStartX
+        const screenAWidth = multipleWidth !== 1 ? canvasWidth - screenAStart : imageWidth - screenAStart
+        const screenBWidth = canvasWidth - screenAWidth
+        this.imageDisplay(resultImage, screenAStart, 0, screenAWidth, canvasHeight, 0, 0, screenAWidth, canvasHeight)
+        this.imageDisplay(resultImage, 0, 0, screenBWidth, canvasHeight, screenAWidth, 0, screenBWidth, canvasHeight)
+      } else {
+        // 출력길이가 초과하지 않는다면, 좌표에 맞게 그대로 출력
+        this.imageDisplay(resultImage, imageStartX, imageStartY, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      }
+    } else if (imageStartX === 0 && imageStartY !== 0) {
+      // y축 좌표가 0이 아니고 x축 좌표는 0일 때 (수직 스크롤 포함)
+      // 스크롤 원리는 x축과 동일하다.
+      if (imageStartY + canvasHeight >= imageHeight) {
+        const screenAStart = multipleHeight !== 1 ? Math.floor(imageStartY * multipleHeight) : imageStartY
+        const screenAHeight = multipleHeight !== 1 ? canvasHeight - screenAStart : imageHeight - screenAStart
+        const screenBHeight = canvasHeight - screenAHeight
+        this.imageDisplay(resultImage, 0, screenAStart, canvasWidth, screenAHeight, 0, 0, canvasWidth, screenAHeight)
+        this.imageDisplay(resultImage, 0, 0, canvasWidth, screenBHeight, 0, screenAHeight, canvasWidth, screenBHeight)
+      } else {
+        // 출력길이가 초과하지 않는다면, 좌표에 맞게 그대로 출력
+        this.imageDisplay(resultImage, imageStartX, imageStartY, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      }
+    } else {
+      // x축과 y축이 모두 0이 아닌경우, (수직 + 수평 스크롤)
+      // 만약 어느 축도 이미지의 길이를 초과하지 않았다면, 그대로 이미지를 출력합니다.
+      if (imageStartX + canvasWidth <= imageWidth && imageStartY + canvasHeight <= imageHeight) {
+        this.imageDisplay(resultImage, imageStartX, imageStartY, canvasWidth, canvasHeight, 0, 0, canvasWidth, canvasHeight)
+      } else {
+        // 어느 쪽도 초과라면 4번에 나누어져 출력
+        const screenBaseStartX = multipleWidth !== 1 ? Math.floor(imageStartX * multipleWidth) : imageStartX
+        const screenBaseStartY = multipleHeight !== 1 ? Math.floor(imageStartY * multipleHeight) : imageStartY
+        const screenBaseWidth = multipleWidth !== 1 ? canvasWidth - screenBaseStartX : imageWidth - screenBaseStartX
+        const screenBaseHeight = multipleWidth !== 1 ? canvasHeight - screenBaseStartY : imageHeight - screenBaseStartY
+        const screenExtendWidth = multipleWidth !== 1 ? canvasWidth - screenBaseWidth : imageWidth - screenBaseWidth
+        const screenExtendHeight = multipleWidth !== 1 ? canvasHeight - screenBaseHeight : imageHeight - screenBaseHeight
+
+        // 오류 방지를 위해 이미지를 자르는 사이즈가 0이 되지 않도록 조건을 정한 후 출력
+        // 첫번째 기본 이미지
+        if (screenBaseWidth !== 0 || screenBaseHeight !== 0) {
+          this.imageDisplay(resultImage, screenBaseStartX, screenBaseStartY, screenBaseWidth, screenBaseHeight, 0, 0, screenBaseWidth, screenBaseHeight)
+        }
+
+        // 두번째 x축 이미지 (첫번째 이미지를 기준으로 X축의 다른 위치[이미지가 스크롤 하면서 잘린 지점])
+        if (imageStartX + canvasWidth >= imageWidth && screenBaseWidth !== 0) {
+          this.imageDisplay(resultImage, 0, screenBaseStartY, screenExtendWidth, screenBaseHeight, screenBaseWidth, 0, screenExtendWidth, screenBaseHeight)
+        } else if (screenBaseWidth === 0) {
+          this.imageDisplay(resultImage, 0, screenBaseStartY, screenExtendWidth, screenBaseHeight, 0, 0, screenExtendWidth, screenBaseHeight)
+        }
+
+        // 세번째 y축 이미지 (첫번째 이미지를 기준으로 Y축 다른 위치[이미지가 스크롤 하면서 잘린 지점])
+        if (imageStartY + canvasHeight >= imageHeight && screenBaseHeight !== 0) {
+          this.imageDisplay(resultImage, screenBaseStartX, 0, screenBaseWidth, screenExtendHeight, 0, screenBaseHeight, screenBaseWidth, screenExtendHeight)
+        } else if (screenBaseHeight === 0) { // 만약 baseHeight가 0이라면, x, 0 위치에 출력합니다.
+          this.imageDisplay(resultImage, screenBaseStartX, 0, screenBaseWidth, screenExtendHeight, 0, 0, screenBaseWidth, screenExtendHeight )
+        }
+
+        // 네번째 x, y축 이미지 (첫번째 이미지를 기준으로 대각선에 위치)
+        if (screenBaseWidth !== 0 && screenBaseHeight !== 0) {
+          this.imageDisplay(resultImage, 0, 0, screenExtendWidth, screenExtendHeight, screenBaseWidth, screenBaseHeight, screenExtendWidth, screenExtendHeight)
+        } else if (screenBaseWidth === 0 && screenBaseHeight !== 0) { // width(가로축)만 0인 경우
+          this.imageDisplay(resultImage, 0, 0, screenExtendWidth, screenExtendHeight, 0, screenBaseHeight, screenExtendWidth, screenExtendHeight)
+        } else if (screenBaseWidth !== 0 && screenBaseHeight === 0) { // height(세로축)만 0인 경우
+          this.imageDisplay(resultImage, 0, 0, screenExtendWidth, screenExtendHeight, screenBaseWidth, 0, screenExtendWidth, screenExtendHeight)
+        } else if (screenBaseWidth === 0 && screenBaseHeight === 0) { // 둘 다 0인 경우
+          this.imageDisplay(resultImage, 0, 0, screenExtendWidth, screenExtendHeight, 0, 0, screenExtendWidth, screenExtendHeight)
+        }
+      }
     }
   }
 }

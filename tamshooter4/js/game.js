@@ -1,14 +1,16 @@
 //@ts-check
 
-import { imageSrc } from "./imageSrc.js"
+import { ID } from "./dataId.js"
+import { ImageDataObject, imageDataInfo, imageSrc } from "./imageSrc.js"
 import { soundSrc } from "./soundSrc.js"
 import { TamsaEngine } from "./tamsaEngine/tamsaEngine.js"
+import { systemText } from "./text.js"
 
 // 이 파일은 함수 및 변수를 export할 목적으로 만들어졌으며
 // 순환 참조를 구조적으로 불가능하게 하기 위해 만들어졌습니다.
 
 /** tamshooter4 게임 변수입니다. */
-export let game = new TamsaEngine('tamshooter4', 800, 600, 'js/tamsaEngine/', 60)
+export let game = new TamsaEngine('tamshooter4', 800, 600, 60)
 
 // body 태그 색 변경 및 자동 크기 조절
 game.graphic.setBodyColor('#181818')
@@ -54,8 +56,52 @@ class StatLineText {
 
 /** tamshooter4 게임에서 사용하는 공통 함수 */
 export class gameFunction {
-  /** 숫자를 디지털 이미지의 형태로 출력해주는 함수 */
-  static digitalDisplay = game.graphic.createCustomBitmapDisplay(imageSrc.system.digitalFontSmall, 12, 18)
+  /**
+   * digitalFont로 글자를 출력합니다.
+   * @param {string} inputText 입력할 텍스트
+   * @param {number} x 출력할 x좌표
+   * @param {number} y 출력할 y좌표
+   * @param {number} wordwidth 글자너비
+   * @param {number} wordheight 글자높이
+   */
+  static digitalDisplay = (inputText, x = 0, y = 0, wordwidth = 12, wordheight = 18) => {
+    if (wordwidth <= 18 && wordheight <= 24) {
+      this._digitalDisplaySmall(inputText, x, y, wordwidth, wordheight)
+    } else if (wordwidth <= 30 && wordheight <= 40) {
+      this._digitalDisplayMedium(inputText, x, y, wordwidth, wordheight)
+    } else {
+      this._digitalDisplayBig(inputText, x, y, wordwidth, wordheight)
+    }
+  }
+
+  static _digitalDisplaySmall = game.graphic.createCustomBitmapDisplay(imageSrc.system.digitalFontSmall, 12, 18)
+  static _digitalDisplayMedium = game.graphic.createCustomBitmapDisplay(imageSrc.system.digitalFont, 20, 30)
+  static _digitalDisplayBig = game.graphic.createCustomBitmapDisplay(imageSrc.system.digitalFontBig, 40, 60)
+
+  /**
+   * (fieldSystem에서 사용하는 imageObjectDisplay랑 동일)
+   * 
+   * 특정 이미지 데이터를 포함한 이미지를 출력합니다.
+   * 
+   * 자기 자신의 객체를 출력하려면 defaultDisplay 함수를 사용해주세요.
+   * 
+   * @param {string} imageSrc 
+   * @param {ImageDataObject} imageData 이미지 데이터
+   * @param {number} x 출력할 x좌표
+   * @param {number} y 출력할 y좌표
+   * @param {number} width 출력할 너비
+   * @param {number} height 출력할 높이
+   * @param {number} flip 뒤집기 (자세한것은 graphicSystem.setFilp(또는 game.grapic.setFlip) 참고)
+   * @param {number} degree 회전각도 (자세한것은 graphicSystem.setDegree(또는 game.grapic.setDegree) 참고) 
+   * @param {number} alpha 알파값 (자세한것은 graphicSystem.setAlpha(또는 game.grapic.setAlpha) 참고)
+   */
+  static imageObjectDisplay (imageSrc, imageData, x, y, width = imageData.width, height = imageData.height, flip = 0, degree = 0, alpha = 1) {
+    if (flip !== 0 || degree !== 0 || alpha !== 1) {
+      game.graphic.imageDisplay(imageSrc, imageData.x, imageData.y, imageData.width, imageData.height, x, y, width, height, flip, degree, alpha)
+    } else {
+      game.graphic.imageDisplay(imageSrc, imageData.x, imageData.y, imageData.width, imageData.height, x, y, width, height)
+    }
+  }
 }
 
 /** tamshooter4 게임에서 사용하는 공통 변수 */
@@ -88,24 +134,115 @@ export class userSystem {
   /** 경험치: 경험치 값은 addExp, setExp등을 통해 수정해주세요. */ static exp = 0
   /** 쉴드 */ static shield = 200
   /** 쉴드 최대치 */ static shieldMax = 200
-  /** 체력 (100% 값처럼 취급됨.) */ static hp = 100
-  /** 체력 최대치 */ static hpMax = 100
+  /** 쉴드 회복량 (매 프레임마다), 참고: 이 값을 60번 적용해야 실제 쉴드가 1 회복됩니다. */ static shieldRecovery = 100
+  /** 쉴드 회복의 기준값 (이 수치가 전부 채워져야 1 회복) */ static SHIELD_RECOVERY_BASE_VALUE = 6000
+  /** 체력 (100% 값처럼 취급됨.) */ static hp = 300
+  /** 체력 최대치 */ static hpMax = 300
   /** 데미지 경고 프레임 */ static damageWarningFrame = 0
   /** 레벨업 이펙트 프레임 */ static levelUpEffectFrame = 0
+  /** 골드 (플레이어의 자원) */ static gold = 0
   
-  /** 스킬 리스트 (총 8개, 이중 0 ~ 3번은 A슬롯, 4 ~ 7번은 B슬롯) */ 
+  /** 스킬 리스트(기본값) (총 8개, 이중 0 ~ 3번은 A슬롯, 4 ~ 7번은 B슬롯) */ 
   static skillList = [
-    // ID.playerSkill.multyshot, ID.playerSkill.missile, ID.playerSkill.arrow, ID.playerSkill.blaster,
-    // ID.playerSkill.hyperBall, ID.playerSkill.santansu, ID.playerSkill.parapo, ID.playerSkill.critcalChaser
+    ID.playerSkill.multyshot, ID.playerSkill.missile, ID.playerSkill.arrow, ID.playerSkill.critcalChaser,
+    ID.playerSkill.laser, ID.playerSkill.sapia, ID.playerSkill.parapo, ID.playerSkill.seondanil,
   ]
 
-  /** 무기 리스트, 0 ~ 3번까지만 있음. 4번은 무기를 사용하기 싫을 때 사용 따라서 무기가 지정되지 않음. */
+  /** 현재 스킬의 프리셋 번호 */
+  static skillPresetNumber = 0
+
+  /** 스킬 1세트의 개수 */
+  static SKILL_LIST_COUNT = 8
+
+  /** 프리셋의 최대 번호 */
+  static PRESET_MAX_NUMBER = 4
+
+  /** 스킬 리스트의 프리셋 (모든 스킬번호는 연결되어있음. 각각 4개는 A/B슬롯을 나타냄. 8개가 1세트) */
+  static skillPresetList = [
+    ID.playerSkill.multyshot, ID.playerSkill.missile, ID.playerSkill.arrow, ID.playerSkill.critcalChaser, // preset 1A
+    ID.playerSkill.laser, ID.playerSkill.sapia, ID.playerSkill.parapo, ID.playerSkill.seondanil, // preset 1B
+    ID.playerSkill.hyperBall, ID.playerSkill.whiteflash, ID.playerSkill.sword, ID.playerSkill.hanjumoek, // preset 2A
+    ID.playerSkill.rapid, ID.playerSkill.santansu, ID.playerSkill.ring, ID.playerSkill.pileBunker, // preset 2B
+    ID.playerSkill.multyshot, ID.playerSkill.missile, ID.playerSkill.arrow, ID.playerSkill.critcalChaser, // preset 3A
+    ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused,ID.playerSkill.unused, // preset 3B
+    ID.playerSkill.multyshot, ID.playerSkill.missile, ID.playerSkill.arrow, ID.playerSkill.critcalChaser, // preset 4A
+    ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused, // preset 4B
+    ID.playerSkill.multyshot, ID.playerSkill.missile, ID.playerSkill.arrow, ID.playerSkill.critcalChaser, // preset 5A
+    ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused, // preset 5B
+  ]
+
+  static equipment = {
+    id: 0,
+    upgradeLevel: 0,
+    totalUsingCost: 0,
+
+    // cache data
+    attack: 0,
+  }
+
+  /** @type {Map<number, number>} */
+  static inventory = new Map()
+
+  /** 
+   * 인벤토리에 아이템 추가 
+   * @param {number} id 아이템의 id (0인경우 무시함)
+   * @param {number} [count=1] 추가하는 개수 (참고: 아이템의 최대 개수는 제한이 없으나 2^53보다 높아지면 정밀도가 손실됨)
+   */
+  static addInventoryItem (id = 0, count = 1) {
+    if (id === 0) return
+
+    // 현재 id에 해당하는 아이템 개수를 가져옴
+    let targetItemCount = this.inventory.get(id)
+    if (targetItemCount == null) {
+      this.inventory.set(id, count) // 새로 개수를 추가
+    } else {
+      this.inventory.set(id, count + targetItemCount) // 기존 개수에 추가
+    }
+  }
+
+  /** 
+   * 인벤토리의 아이템 제거 
+   * @param {number} id 아이템의 id (0인경우 무시함)
+   * @param {number} [count=1] 제거해야 하는 개수 (참고: 음수값이면 전부 제거됨, 0은 제거되지 않음), 개수를 초과한경우에는 남은 개수를 전부 제거
+   */
+  static removeInventoryItem (id = 0, count = 1) {
+    if (id === 0 && count === 0) return
+    
+    let targetItemCount = this.inventory.get(id)
+    if (targetItemCount == null) return
+
+    if (count < 0 || targetItemCount < count) {
+      this.inventory.delete(id) // 인벤토리 개수보다 더 많이 삭제하면 해당 아이템을 삭제
+    } else {
+      this.inventory.set(id, targetItemCount - count) // 아이템 개수 감소
+    }
+  }
+
+  /** 무기 리스트(기본값), 0 ~ 3번까지만 있음. 4번은 무기를 사용하기 싫을 때 사용 따라서 무기가 지정되지 않음. */
   static weaponList = [
-    // ID.playerWeapon.multyshot, ID.playerWeapon.missile, ID.playerWeapon.arrow, ID.playerWeapon.laser
+    ID.playerWeapon.multyshot, ID.playerWeapon.missile, ID.playerWeapon.arrow, ID.playerWeapon.laser
+  ]
+
+  /** 현재 무기의 프리셋 번호 */
+  static weaponPresetNumber = 0
+
+  /** 무기의 리스트 개수 */
+  static WEAPON_LIST_COUNT = 4
+
+  /** 무기가 가진 프리셋 리스트, 5개가 연속적으로 연결되어있음. */
+  static weaponPresetList = [
+    ID.playerWeapon.multyshot, ID.playerWeapon.missile, ID.playerWeapon.arrow, ID.playerWeapon.laser,
+    ID.playerWeapon.blaster, ID.playerWeapon.parapo, ID.playerWeapon.sapia, ID.playerWeapon.ring,
+    ID.playerWeapon.multyshot, ID.playerWeapon.rapid, ID.playerWeapon.parapo, ID.playerWeapon.unused,
+    ID.playerWeapon.multyshot, ID.playerWeapon.unused, ID.playerWeapon.unused, ID.playerWeapon.unused,
+    ID.playerWeapon.multyshot, ID.playerWeapon.unused, ID.playerWeapon.unused, ID.playerWeapon.unused,
   ]
   
+  /** 플레이어가 기본적으로 가지는 공격력 */
+  static BASE_ATTACK = 40000
+
   /** 공격력(초당), 참고: 이 값은 processStat함수를 실행하지 않으면 값이 갱신되지 않습니다. */ 
-  static attack = 10000
+  static attack = userSystem.BASE_ATTACK
 
   /** 유저 스탯 숨기기 */ static isHideUserStat = false
   /** 숨기기를 사용할 때, 적용되는 알파값, 완전히 숨겨지면 0.2로 취급 */ static hideUserStatAlpha = 1
@@ -123,9 +260,9 @@ export class userSystem {
    * 공격력 보너스 테이블
    */
   static attackBonusTable = [0, // lv 0
-    0, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000, // lv 1 ~ 10
-    2400, 2800, 3200, 3600, 4000, 4300, 4500, 4700, 6000, 6000, // lv 11 ~ 20
-    5130, 5240, 5330, 5410, 5500, 5600, 5700, 5800, 6000, 6000, // lv 21 ~ 30
+    0, 900, 1800, 2700, 3600, 4500, 5600, 6700, 7800, 10000, // lv 1 ~ 10
+    11500, 13000, 14500, 16000, 17500, 20000, 22500, 25000, 27500, 30000, // lv 11 ~ 20
+    31100, 32200, 33300, 34400, 35500, 37000, 37700, 38400, 39100, 40000, // lv 21 ~ 30
   ]
 
   /** 총 플레이 타임 에 관한 정보 */
@@ -157,10 +294,7 @@ export class userSystem {
         this.hour++
       }
     },
-    /**
-     * playTime을 수정하는 함수.
-     */
-    setData: function (hour, minute, second) {
+    setData: function (hour = 0, minute = 0, second = 0) {
       this.second = second
       this.minute = minute
       this.hour = hour
@@ -188,7 +322,7 @@ export class userSystem {
       this.minute = currentDate.getMinutes()
       this.second = currentDate.getSeconds()
     },
-    setData: function (year, month, day, hour, minute, second) {
+    setData: function (year = 2000, month = 1, day = 1, hour = 1, minute = 1, second = 1) {
       this.year = year
       this.month = month
       this.day = day
@@ -217,15 +351,32 @@ export class userSystem {
 
   /**
    * 유저의 startDate를 수정하는 함수
-   * 아무 인수도 없으면 현재 날짜로 설정됩니다.
-   * @param {number} year 해당 년도, 만약 이 값이 없다면 현재 날짜로 startDate를 자동 설정합니다.
+   * @param {number | string} year 해당 년도
+   * @param {number | string} month 월
+   * @param {number | string} day 일
+   * @param {number | string} hour 시
+   * @param {number | string} minute 분
+   * @param {number | string} second 초
    */
   static setStartDate (year, month, day, hour, minute, second) {
-    if (arguments.length === 0) {
-      this.startDate.setCurrentDate()
-    } else {
-      this.startDate.setData(year, month, day, hour, minute, second)
+    if (typeof year === 'string') year = Number(year)
+    if (typeof month  === 'string') month  = Number(month)
+    if (typeof day === 'string') day = Number(day)
+    if (typeof hour === 'string') hour = Number(hour)
+    if (typeof minute === 'string') minute = Number(minute)
+    if (typeof second === 'string') second = Number(second)
+
+    if (isNaN(second) || isNaN(minute) || isNaN(second)) {
+      console.error(systemText.gameError.LOAD_PLAYTIME_ERROR)
+      return
     }
+
+    this.startDate.setData(year, month, day, hour, minute, second)
+  }
+
+  /** 유저의 시작 일을 재설정합니다. */
+  static setStartDateReset () {
+    this.startDate.setCurrentDate()
   }
 
   /**
@@ -247,6 +398,13 @@ export class userSystem {
   static setSkillDisplayStat (slotNumber, coolTime, id) {
     this.skillDisplayStat[slotNumber].coolTime = coolTime
     this.skillDisplayStat[slotNumber].id = id
+  }
+
+  /** 현재 스킬 상태를 그대로 보여지게 하는 함수 */
+  static setSkillDisplayStatDefaultFunction () {
+    for (let i = 0; i < this.skillDisplayStat.length; i++) {
+      this.skillDisplayStat[i].id = this.skillList[i]
+    }
   }
 
   static setSkillDisplayCooltimeZero () {
@@ -272,6 +430,58 @@ export class userSystem {
       }
     }
   }
+  
+  /**
+   * 스킬을 설정합니다. 중복은 허용되지 않습니다. unused값을 넣으면 해당 스킬을 삭제합니다.
+   * A슬롯에 있는 스킬은 제거할 수 없습니다. (왜냐하면, 스킬을 사용하지 않으면 게임 진행이 매우 어렵습니다.)
+   * @param {number} skillSlotNumber (0 ~ 7 번 선택 가능), 0 ~ 3: A슬롯, 4 ~ 7: B슬롯
+   * @param {number} skillId 스킬의 아이디
+   * @returns {boolean}
+   */
+  static setSkill (skillSlotNumber = 0, skillId = 0) {
+    if (skillSlotNumber < 0 && skillSlotNumber > this.SKILL_LIST_COUNT) return false
+    if (skillId === 0) {
+      // A슬롯(0 ~ 3번) 은 스킬을 제거할 수 없음
+      if (skillSlotNumber <= 3) return false
+
+      this.skillList[skillSlotNumber] = skillId
+      return true
+    }
+
+    // 중복 불가능
+    if (this.skillList.includes(skillId)) return false
+
+    // 스킬 교체
+    this.skillList[skillSlotNumber] = skillId
+    return true
+  }
+
+  /**
+   * 스킬의 프리셋을 변경합니다. (무기랑 원리가 동일)
+   * @param {number} presetNumber 프리셋 번호 (0 ~ 4)
+   */
+  static changePresetSkill (presetNumber = 0) {
+    if (presetNumber < 0 && presetNumber > this.PRESET_MAX_NUMBER) return
+    if (presetNumber === this.skillPresetNumber) return
+
+    // 현재 값을 이전 프리셋에 저장합니다.
+    let prevArrayNumber = this.skillPresetNumber * this.SKILL_LIST_COUNT
+    for (let i = 0; i < this.SKILL_LIST_COUNT; i++) {
+      let index = prevArrayNumber + i
+      this.skillPresetList[index] = this.skillList[i]
+    }
+
+    // 그리고 다른 프리셋의 무기를 현재 무기로 재설정합니다.
+    let nextArrayNumber = presetNumber * this.SKILL_LIST_COUNT
+    for (let i = 0; i < this.SKILL_LIST_COUNT; i++) {
+      // 참고: 프리셋을 변경하는 과정에서 중복되는 무기는 삭제되거나 변형될 수 있음.
+      let index = nextArrayNumber + i
+      this.skillList[i] = this.skillPresetList[index]
+    }
+
+    // 프리셋 번호 변경
+    this.skillPresetNumber = presetNumber
+  }
 
   static getSkillList () {
     return this.skillList
@@ -281,8 +491,113 @@ export class userSystem {
     return this.weaponList
   }
 
-  static setWeaponList (weaponList) {
+  /**
+   * 현재 무기를 얻어옵니다.
+   * @param {number} weaponSlotNumber 무기 슬롯 번호: 0 ~ 3까지
+   */
+  static getCurrentWeapon (weaponSlotNumber = 0) {
+    return this.weaponList[weaponSlotNumber]
+  }
+
+  /**
+   * 무기를 변경합니다. (중복할 수 없음, 무기 삭제도 가능)
+   * @param {number} slotNumber 무기 슬롯의 번호
+   * @param {number} weaponId 무기의 아이디 (0일경우, 해당 무기 삭제(남은 무기가 2개 이상이여야함))
+   * @returns {boolean} 무기 변경 성공 여부 (무기 선택 시스템에서 이 정보가 필요함)
+   */
+  static setWeapon (slotNumber = 0, weaponId = 0) {
+    if (slotNumber < 0 || slotNumber > this.WEAPON_LIST_COUNT) return false
+    if (weaponId !== 0 && weaponId < ID.playerWeapon.weaponNumberStart) return false
+    if (weaponId === 0) {
+      let valid = 0
+      for (let i = 0; i < this.weaponList.length; i++) {
+        if (this.weaponList[i] !== 0) valid++
+      }
+
+      // 무기가 한개를 초과하면 해당 무기를 삭제할 수 있음.
+      // 적어도 무기가 하나 이상은 있어야 함.
+      if (valid > 1) {
+        this.weaponList[slotNumber] = weaponId
+        return true
+      } else {
+        return false
+      }
+    }
+
+    // 무기가 중복되어있으면, 설정 무시
+    if (this.weaponList.includes(weaponId)) return false
+
+    this.weaponList[slotNumber] = weaponId
+    return true // 무기 변경 성공
+  }
+
+  /**
+   * 무기의 리스트를 설정합니다.
+   * @param {number[]} weaponList 무기의 id 4개
+   * @deprecated setWeapon을 대신 사용해주세요. 이 무기 리스트는 무기의 중복을 검사하지 않습니다.
+   */
+  static setWeaponList (weaponList = []) {
     this.weaponList = weaponList
+  }
+
+  /**
+   * 무기 프리셋 설정 (1 ~ 5번까지 있음.)
+   * 잘못된 숫자를 입력하면 일단 1번이 리턴됨
+   * @param {number} presetNumber 프리셋번호 (0 ~ 4)
+   * @param {number[]} weaponList 무기의 리스트
+   */
+  static setPresetWeaponList (presetNumber = 0, weaponList) {
+    if (presetNumber < 0 && presetNumber > this.WEAPON_LIST_COUNT) presetNumber = 0
+    let arrayNumber = presetNumber * this.WEAPON_LIST_COUNT
+    if (weaponList.length !== 4) {
+      throw new Error('잘못된 무기의 개수')
+    }
+
+    this.weaponPresetList[arrayNumber + 0] = weaponList[0]
+    this.weaponPresetList[arrayNumber + 1] = weaponList[1]
+    this.weaponPresetList[arrayNumber + 2] = weaponList[2]
+    this.weaponPresetList[arrayNumber + 3] = weaponList[3]
+  }
+
+  /**
+   * 해당하는 무기 프리셋을 가져옵니다. (0 ~ 4번까지 있음.)
+   * @param {number} presetNumber 
+   */
+  static getPresetWeaponList (presetNumber = 0) {
+    if (presetNumber < 0 && presetNumber > this.WEAPON_LIST_COUNT) presetNumber = 0
+    let arrayNumber = presetNumber * this.WEAPON_LIST_COUNT
+    return [
+      this.weaponPresetList[arrayNumber + 0],
+      this.weaponPresetList[arrayNumber + 1],
+      this.weaponPresetList[arrayNumber + 2],
+      this.weaponPresetList[arrayNumber + 3]
+    ]
+  }
+
+  /**
+   * 현재 무기의 프리셋을 변경합니다. (무기는 자동으로 교체됩니다.)
+   * @param {number} presetNumber 
+   */
+  static changePresetWeapon (presetNumber = 0) {
+    if (presetNumber < 0 && presetNumber > this.WEAPON_LIST_COUNT) return
+    if (presetNumber === this.weaponPresetNumber) return
+
+    // 현재 무기를 이전 프리셋에 저장합니다.
+    let prevArrayNumber = this.weaponPresetNumber * this.WEAPON_LIST_COUNT
+    for (let i = 0; i < this.WEAPON_LIST_COUNT; i++) {
+      let index = prevArrayNumber + i
+      this.weaponPresetList[index] = this.weaponList[i]
+    }
+
+    // 그리고 다른 프리셋의 무기를 현재 무기로 재설정합니다.
+    let nextArrayNumber = presetNumber * this.WEAPON_LIST_COUNT
+    for (let i = 0; i < this.WEAPON_LIST_COUNT; i++) {
+      let index = nextArrayNumber + i
+      this.weaponList[i] = this.weaponPresetList[index]
+    }
+
+    // 프리셋 번호 변경
+    this.weaponPresetNumber = presetNumber
   }
 
   /**
@@ -308,6 +623,20 @@ export class userSystem {
         game.sound.play(soundSrc.system.systemLevelUp)
       }
     }
+  }
+
+  /** 현재 값만큼 유저의 골드를 더합니다. */
+  static plusGold (gold = 0) {
+    if (gold < 0) return
+
+    this.gold += gold
+  }
+
+  /** 현재 값만큼 유저의 골드를 뺍니다. */
+  static minusGold (gold = 0) {
+    if (gold < 0) return
+
+    this.gold -= gold
   }
 
   /**
@@ -360,7 +689,8 @@ export class userSystem {
   }
 
   static displayUserStatVer2 () {
-    const statImage = imageSrc.system.playerStat
+    const statImageSrc = imageSrc.system.mainSystem
+    const statImageData = imageDataInfo.mainSystem.playerStat
     const statImageX = 20
     const statImageY = 500
 
@@ -380,46 +710,48 @@ export class userSystem {
     const EXP_COLORB = ['#CF8BF3', '#4A00E0', '#3c1053']
 
     // stat image
-    game.graphic.imageView(statImage, statImageX, statImageY)
-
+    gameFunction.imageObjectDisplay(statImageSrc, statImageData, statImageX, statImageY)
 
     // skill display
     for (let i = 0; i < this.skillDisplayStat.length; i++) {
-      const skillNumberImage = imageSrc.system.skillNumber
       const skillIconImage = imageSrc.system.skillIcon
-      const NUMBER_SLICE_WIDTH = 20
-      const NUMBER_SLICE_HEIGHT = 20
-      // NUMBER_SLICEX는 1번부터 4번까지 차례대로 출력하므로, i값을 이용해 위치를 조절
-      const NUMBER_SLICEX = NUMBER_SLICE_WIDTH * i
-      // NUMBER_SLICEY는 스킬 쿨타임이 있을 때 흐린 이미지를 처리해야 하는데, 이 이미지가 0, 20위치에서 시작딤.
-      const NUMBER_SLICEY = this.skillDisplayStat[i].coolTime <= 0 ? 0 : NUMBER_SLICE_HEIGHT
       const AREA_WIDTH = 75 // 300 / 4 = 75
       const NUMBER_X = LAYERX
-      const SKILL_X = LAYERX + NUMBER_SLICE_WIDTH
+      const SKILL_X = LAYERX + imageDataInfo.mainSystem.skillSlot1Available.width
       const SKILL_WIDTH = 40
       const SKILL_HEIGHT = 20
       
       const OUTPUT_NUMBER_X = NUMBER_X + (i * AREA_WIDTH)
       const OUTPUT_SKILL_X = SKILL_X + (i * AREA_WIDTH)
       const OUTPUT_TIME_X = OUTPUT_SKILL_X
-      const OUTPUT_TIME_Y = LAYERY1 + 2
+      const OUTPUT_TIME_Y = LAYERY1 + 1
 
-      game.graphic.imageDisplay(skillNumberImage, NUMBER_SLICEX, NUMBER_SLICEY, NUMBER_SLICE_WIDTH, NUMBER_SLICE_HEIGHT, OUTPUT_NUMBER_X, LAYERY1, NUMBER_SLICE_WIDTH, NUMBER_SLICE_HEIGHT)
-      
+      // skill number display
+      const imgD = imageDataInfo.mainSystem
+      let targetImgD = imageDataInfo.mainSystem.skillSlot1Available
+      let isAvailable = this.skillDisplayStat[i].coolTime <= 0
+      switch (i) {
+        case 0: targetImgD = isAvailable ? imgD.skillSlot1Available : imgD.skillSlot1Disable; break
+        case 1: targetImgD = isAvailable ? imgD.skillSlot2Available : imgD.skillSlot2Disable; break
+        case 2: targetImgD = isAvailable ? imgD.skillSlot3Available : imgD.skillSlot3Disable; break
+        case 3: targetImgD = isAvailable ? imgD.skillSlot4Available : imgD.skillSlot4Disable; break
+      }
+      gameFunction.imageObjectDisplay(imageSrc.system.mainSystem, targetImgD, OUTPUT_NUMBER_X, OUTPUT_TIME_Y)
+
       // 스킬 쿨타임이 남아있다면, 남은 시간이 숫자로 표시됩니다.
       // 스킬 쿨타임이 없다면, 스킬을 사용할 수 있으며, 스킬 아이콘이 표시됩니다.
       // 해당하는 스킬이 없다면, 스킬은 표시되지 않습니다.
       if (this.skillDisplayStat[i].coolTime >= 1) {
         if (this.skillDisplayStat[i].id !== 0) {
-          const skillNumber = this.skillDisplayStat[i].id - 15000 // 스킬의 ID는 15001부터 시작이라, 15000을 빼면, 스킬 번호값을 얻을 수 있음.
+          const skillNumber = this.skillDisplayStat[i].id - ID.playerSkill.skillNumberStart // 스킬의 ID는 15001부터 시작이라, 15000을 빼면, 스킬 번호값을 얻을 수 있음.
           const skillXLine = skillNumber % 10
           const skillYLine = Math.floor(skillNumber / 10)
           game.graphic.imageDisplay(skillIconImage, skillXLine * SKILL_WIDTH, skillYLine * SKILL_HEIGHT, SKILL_WIDTH, SKILL_HEIGHT, OUTPUT_SKILL_X, LAYERY1, SKILL_WIDTH, SKILL_HEIGHT, 0, 0, 0.5)
         }
-        digitalDisplay(this.skillDisplayStat[i].coolTime, OUTPUT_TIME_X, OUTPUT_TIME_Y) // 스킬 쿨타임 시간
+        digitalDisplay(this.skillDisplayStat[i].coolTime + '', OUTPUT_TIME_X, OUTPUT_TIME_Y) // 스킬 쿨타임 시간
       } else {
         if (this.skillDisplayStat[i].id !== 0) {
-          const skillNumber = this.skillDisplayStat[i].id - 15000 // 스킬의 ID는 15001부터 시작이라, 15000을 빼면, 스킬 번호값을 얻을 수 있음.
+          const skillNumber = this.skillDisplayStat[i].id - ID.playerSkill.skillNumberStart // 스킬의 ID는 15001부터 시작이라, 15000을 빼면, 스킬 번호값을 얻을 수 있음.
           const skillXLine = skillNumber % 10
           const skillYLine = Math.floor(skillNumber / 10)
           game.graphic.imageDisplay(skillIconImage, skillXLine * SKILL_WIDTH, skillYLine * SKILL_HEIGHT, SKILL_WIDTH, SKILL_HEIGHT, OUTPUT_SKILL_X, LAYERY1, SKILL_WIDTH, SKILL_HEIGHT)
@@ -430,51 +762,55 @@ export class userSystem {
     // hp + shield display
     const hpPercent = this.hp / this.hpMax
     const HP_WIDTH = Math.floor(LAYER_WIDTH / 2) * hpPercent
-    const shieldPercent = this.shield / this.shieldMax
-    const SHIELD_WIDTH = Math.floor(LAYER_WIDTH / 2) * shieldPercent
 
+    // 참고로 체력게이지 바로 뒤에 쉴드 게이지를 표시하기 때문에, 좌표값 계산을 위하여 hp는 따로 퍼센트와 길이를 계산했습니다.
     if (this.damageWarningFrame > 0) {
       let targetFrame = this.damageWarningFrame % H_COLORA.length
 
       // 체력 게이지 그라디언트
-      game.graphic.gradientDisplay(LAYERX, LAYERY2, HP_WIDTH, LAYER_HEIGHT, H_COLORA[targetFrame], H_COLORB[targetFrame])
+      game.graphic.meterRect(LAYERX, LAYERY2, LAYER_WIDTH / 2, LAYER_HEIGHT, [H_COLORA[targetFrame], H_COLORB[targetFrame]], this.hp, this.hpMax)
 
       // 쉴드 게이지 그라디언트
-      game.graphic.gradientDisplay(LAYERX + HP_WIDTH, LAYERY2, SHIELD_WIDTH, LAYER_HEIGHT, S_COLORA[targetFrame], S_COLORB[targetFrame])
+      game.graphic.meterRect(LAYERX + HP_WIDTH, LAYERY2, LAYER_WIDTH / 2, LAYER_HEIGHT, [S_COLORA[targetFrame], S_COLORB[targetFrame]], this.shield, this.shieldMax)
     } else {
       // 체력 게이지 그라디언트 [파란색]
-      game.graphic.gradientDisplay(LAYERX, LAYERY2, HP_WIDTH, LAYER_HEIGHT, H_COLORA[0], H_COLORB[0])
+      game.graphic.meterRect(LAYERX, LAYERY2, LAYER_WIDTH / 2, LAYER_HEIGHT, [H_COLORA[0], H_COLORB[0]], this.hp, this.hpMax)
 
       // 쉴드 게이지 그라디언트 [하늘색]
-      game.graphic.gradientDisplay(LAYERX + HP_WIDTH, LAYERY2, SHIELD_WIDTH, LAYER_HEIGHT, S_COLORA[0], S_COLORB[0])
+      game.graphic.meterRect(LAYERX + HP_WIDTH, LAYERY2, LAYER_WIDTH / 2, LAYER_HEIGHT, [S_COLORA[0], S_COLORB[0]], this.shield, this.shieldMax)
     }
 
     const hpText = this.hp + ' + ' + this.shield + '/' + this.shieldMax
-    digitalDisplay(hpText, LAYERX, LAYERY2)
+    digitalDisplay(hpText, LAYERX + 1, LAYERY2 + 1)
 
 
     // lv + exp display
-    let expPercent = this.exp / this.expTable[this.lv]
-    if (expPercent > 1) expPercent = 1 // 경험치 바가 바깥을 벗어나지 않도록 합니다.
-
     if (this.levelUpEffectFrame > 0) {
       let targetFrame = this.levelUpEffectFrame % EXP_COLORA.length
-      game.graphic.gradientDisplay(LAYERX, LAYERY3, LAYER_WIDTH, LAYER_HEIGHT, EXP_COLORA[targetFrame], EXP_COLORB[targetFrame])
+      game.graphic.meterRect(LAYERX, LAYERY3, LAYER_WIDTH, LAYER_HEIGHT, [EXP_COLORA[targetFrame], EXP_COLORB[targetFrame]], this.exp, this.getExpMax())
     } else {
-      game.graphic.gradientDisplay(LAYERX, LAYERY3, LAYER_WIDTH * expPercent, LAYER_HEIGHT, EXP_COLORA[0], EXP_COLORB[0])
+      game.graphic.meterRect(LAYERX, LAYERY3, LAYER_WIDTH, LAYER_HEIGHT, [EXP_COLORA[0], EXP_COLORB[0]], this.exp, this.getExpMax())
     }
 
     const lvText = 'Lv.' + this.lv + ' ' + this.exp + '/' + this.expTable[this.lv]
-    digitalDisplay(lvText, LAYERX, LAYERY3)
+    digitalDisplay(lvText, LAYERX + 1, LAYERY3 + 1)
   }
 
   /**
-   * 플레이어의 공격력 스탯 재측정
+   * 플레이어의 스탯 재측정 (현재는 공격력만 변함)
    * 
    * 해당 함수를 사용하지 않으면, 공격력이 변경되어도 해당 공격력이 적용되지 않습니다.
    */
   static processStat () {
-    this.attack = 10000 + this.attackBonusTable[this.lv]
+    let equipmentAttack = 0
+    let slotAttack = 0
+    let statAttack = 0
+
+    // 공격력 결정
+    this.attack = this.BASE_ATTACK + this.attackBonusTable[this.lv] + equipmentAttack + slotAttack + statAttack
+
+    // 체력 결정 (아직 해당 코드는 없음, 추후 추가될 수 있음)
+    // 쉴드 결정 (아직 해당 코드는 없음, 추후 추가될 수 있음)
   }
 
   /** 플레이어의 스탯을 재측정하고, 해당 플레이어 정보를 리턴합니다. */
@@ -486,19 +822,64 @@ export class userSystem {
       hpMax: this.hpMax,
       shield: this.shieldMax,
       shieldMax: this.shieldMax,
+      shieldRecovery: this.shieldRecovery,
       lv: this.lv,
-      skillList: this.skillList
+      skillList: this.skillList,
     }
+  }
+
+  static getAttackWeaponValue () {
+    this.processStat()
+    return Math.floor(this.attack * 0.28)
+  }
+  
+  static getAttackSkillValue () {
+    this.processStat()
+    return Math.floor(this.attack * 0.18)
   }
 
   /**
    * 저장 형식 (버전에 따라 변경될 수 있음.)
    * 
-   * lv,exp,weaponlist x 4,skilllist x 8...
-   * 
    * @retruns 세이브데이터의 문자열
    */
   static getSaveData () {
+    let inventoryData = this.getSaveInventoryData()
+    let inputData = {
+      lv: this.lv,
+      exp: this.exp,
+      gold: this.gold,
+      inventoryIdList: inventoryData.idList,
+      inventoryCountList: inventoryData.countList,
+      weapon: this.weaponList,
+      skill: this.skillList,
+      weaponPreset: this.weaponPresetList,
+      weaponPresetNumber: this.weaponPresetNumber,
+      skillPreset: this.skillPresetList,
+      skillPresetNumber: this.skillPresetNumber,
+    }
+
+    return inputData
+  }
+
+  /** 인벤토리를 저장하기 위해 필요한 배열을 얻어옴 */
+  static getSaveInventoryData () {
+    let idList = []
+    let countList = []
+    for (let target of this.inventory) {
+      if (target[0] != null && target[1] != null) {
+        idList.push(target[0])
+        countList.push(target[1])
+      }
+    }
+
+    return {
+      idList,
+      countList,
+    }
+  }
+
+  static getSaveData0a36 () {
     let inputData = [
       this.lv, this.exp,
       this.weaponList[0], this.weaponList[1], this.weaponList[2], this.weaponList[3],
@@ -511,10 +892,83 @@ export class userSystem {
   }
 
   /**
-   * 
-   * @param {string} saveData 
+   * 현재 버전에 대한 유저 데이터 로드
+   * @param {any} saveData 저장 성공 여부
+   * @returns {boolean}
    */
   static setLoadData (saveData) {
+    if (saveData == null) return false
+
+    // 해당 속성이 있을때에만 값을 추가합니다. (없으면 추가 안함)
+    if (saveData.lv) this.lv = saveData.lv
+    if (saveData.exp) this.exp = saveData.exp
+    if (saveData.weapon) this.weaponList = saveData.weapon
+    if (saveData.skill) this.skillList = saveData.skill
+    if (saveData.gold) this.gold = saveData.gold
+
+    let inventroyId = []
+    let inventoryCount = []
+    if (saveData.inventoryId) inventroyId = saveData.inventoryId
+    if (saveData.inventoryCount) inventoryCount = saveData.inventoryCount
+
+    let weaponPreset = []
+    let skillPreset = []
+    if (saveData.weaponPresetNumber) this.weaponPresetNumber = saveData.weaponPresetNumber
+    if (saveData.skillPresetNumber) this.skillPresetNumber = saveData.skillPresetNumber
+    if (saveData.weaponPreset) weaponPreset = saveData.weaponPreset
+    if (saveData.skillPreset) skillPreset = saveData.skillPreset
+
+    // 데이터 유효성 체크
+    if (typeof this.lv !== 'number') {
+      this.lv = Number(this.lv)
+      if (isNaN(this.lv)) {
+        console.error(systemText.gameError.LOAD_USERLEVEL_ERROR)
+        return false // 데이터를 불러오지 않음
+      }
+    }
+
+    // 레벨 범위 체크
+    if (this.lv < 0 || this.lv > this.expTable.length) {
+      console.error(systemText.gameError.LOAD_USERLEVEL_ERROR, this.lv)
+      return false // 데이터를 불러오지 않음
+    }
+
+    if (typeof this.exp !== 'number') {
+      this.exp = Number(this.exp)
+      if (isNaN(this.exp)) {
+        console.error(systemText.gameError.LOAD_USERLEVEL_ERROR)
+        return false // 데이터를 불러오지 않음
+      }
+    }
+
+    // 인벤토리 처리 (id 0은 세이브 관련 버그로 생성되는 더미데이터라 제거됨)
+    for (let i = 0; i < inventroyId.length; i++) {
+      if (inventroyId[i] == null || inventoryCount[i] == null) continue
+      if (inventroyId[i] === 0) continue
+
+      this.inventory.set(inventroyId[i], inventoryCount[i])
+    }
+
+    // 보여지는 부분 설정을 하기 위해 현재 스킬값을 다시 재설정
+    this.setSkillList(this.getSkillList())
+
+    // 무기와 스킬 프리셋 불러오기
+    const presetCount = 5
+    if (weaponPreset != null && weaponPreset.length === presetCount * this.WEAPON_LIST_COUNT) {
+      this.weaponPresetList = weaponPreset
+    }
+    if (skillPreset != null && skillPreset.length === presetCount * this.SKILL_LIST_COUNT) {
+      this.skillPresetList = skillPreset
+    }
+
+    return true
+  }
+
+  /**
+   * 0.36 버전에 대한 유저 데이터 로드
+   * @param {string} saveData 
+   */
+  static setLoadData0a36 (saveData) {
     if (saveData == null) return
 
     let getData = saveData.split(',')

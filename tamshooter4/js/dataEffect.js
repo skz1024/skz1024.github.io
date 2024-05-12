@@ -1,3 +1,5 @@
+//@ts-check
+
 import { DelayData, FieldData, EnimationData } from "./dataField.js"
 import { ImageDataObject } from "./imageSrc.js"
 
@@ -25,7 +27,7 @@ import { ImageDataObject } from "./imageSrc.js"
      * 다음 에니메이션 프레임으로 넘어가기 위한 지연시간 객체(프레임), 기본값 0
      * 지연시간이 0일경우 null
      */
-    this.frameDelay = null
+    this.frameDelay = 0
 
     /**
      * 이미지 파일 내에 있는 각 애니메이션 프레임의 길이
@@ -47,7 +49,7 @@ import { ImageDataObject } from "./imageSrc.js"
     /**
      * 해당 에니메이션의 총합 프레임. 에니메이션 객체가 있을때는 해당 요소를 사용하지 않음.
      */
-    this.totalFrame = 0
+    // this.totalFrame = 0
 
     /**
      * 프레임 반복 수 (에니메이션 용도로 사용합니다.). 가본값 1
@@ -73,14 +75,6 @@ import { ImageDataObject } from "./imageSrc.js"
       this.frameDelay = frameDelay
       this.frameRepeat = frameRepeat
       this.enimation = new EnimationData(imageSrc, imageData.x, imageData.y, imageData.width, imageData.height, imageData.frame, frameDelay, frameRepeat, width, height)
-    }
-  }
-
-  afterInitDefault (width, height) {
-    this.width = width
-    this.height = height
-    if (this.enimation != null) {
-      this.enimation.setOutputSize(width, height)
     }
   }
 

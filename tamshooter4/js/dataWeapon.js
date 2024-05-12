@@ -8,6 +8,7 @@ import { imageDataInfo, imageSrc } from "./imageSrc.js"
 import { EnemyData } from "./dataEnemy.js"
 import { soundSrc } from "./soundSrc.js"
 import { game } from "./game.js"
+import { dataExportStatWeapon } from "./dataStat.js"
 
 let graphicSystem = game.graphic
 let soundSystem = game.sound
@@ -71,10 +72,10 @@ export class WeaponData extends FieldData {
     this.maxHitCount = 1
 
     /**
-     * 반복 딜레이 객체(딜레이가 없으면 null)
-     * @type {DelayData | null}
+     * 반복 딜레이 객체(딜레이가 없어도 생성됨, 다만 사용되지 않을뿐)
+     * @type {DelayData}
      */
-    this.repeatDelay = null
+    this.repeatDelay = new DelayData(1)
 
     /**
      * 무기를 사용한 횟수: repeatCount랑 다른 점은, repeatCount는 적을 타격하면 남은 반복횟수가 감소하지만,
@@ -103,8 +104,25 @@ export class WeaponData extends FieldData {
      * @type {number}
      */
     this.maxTarget = 20
+  }
 
-  
+  afterInitDefault () {
+    super.afterInitDefault()
+    this.inputStat()
+  }
+
+  /** 무기 id에 맞는 해당 스탯을 얻어옵니다. 이 함수는 afterinit에서 자동 실행되므로, 이 함수를 재정의할 필요는 없음 */
+  inputStat () {
+    let stat = dataExportStatWeapon.get(this.id)
+    if (stat == null) return
+
+    this.isChaseType = stat.isChaseType
+    this.mainType = stat.mainType
+    this.subType = stat.subType
+    this.repeatCount = stat.repeatCount
+    this.setMultiTarget(stat.isMultiTarget ? stat.maxTarget : 0) // 멀티타겟인경우 최대타겟, 아닌경우 0
+    this.maxHitCount = stat.maxTarget
+    this.repeatDelay.setDelay(stat.repeatDelay)
   }
 
   /**
@@ -114,7 +132,6 @@ export class WeaponData extends FieldData {
   process () {
     super.process()
     this.processChase()
-    this.processAttack()
     this.processDeleteCheck()
     this.processLineChase()
   }
@@ -146,7 +163,7 @@ export class WeaponData extends FieldData {
    * (플레이어의 공격력에 영향을 받기 때문에, 따로 설정해 주어야 합니다.)
    * @param {number} attack 무기 공격력 (플레이어의 공격력이 아닙니다!)
    */
-  afterInitDefault (attack) {
+  setAttack (attack) {
     this.attack = attack
   }
 
@@ -189,6 +206,10 @@ export class WeaponData extends FieldData {
    * 이 함수에서 공격횟수를 소모하고, 적을 공격하기 위해서는 이 함수 내부에서 hitObjectProgress를 사용해야 합니다.
    */
   processAttack () {
+    // 공격 딜레이가 있으며, 공격딜레이 값을 채우지 못했다면 공격을 시도하지 않습니다.
+    // 공격 딜레이는 적을 공격했을시에만 리셋됩니다.
+    if (this.attackDelay != null && !this.attackDelay.check(false)) return
+
     this.processHitObject()
   }
 
@@ -253,6 +274,11 @@ export class WeaponData extends FieldData {
           }
         }
       }
+    }
+
+    // 공격딜레이가 있는경우, 카운터를 리셋시킵니다.
+    if (this.attackDelay != null) {
+      this.attackDelay.countReset()
     }
   }
 
@@ -332,7 +358,7 @@ export class WeaponData extends FieldData {
    * hitObject가 두 종류로 나뉘어진건, OBB충돌범위에 몇가지 정보가 더 필요하기 때문입니다.
    * @param {{x: number, y: number, width: number, height: number, degree: number}} attackArea 공격 범위
    */
-  processHitObjectOBBCollision (attackArea = null) {
+  processHitObjectOBBCollision (attackArea) {
     const enemyObject = fieldState.getEnemyObject() // 적 오브젝트
     let hitCount = 0 // 적을 총 때린 횟수
     if (attackArea == null) return
@@ -461,8 +487,8 @@ export class WeaponData extends FieldData {
     this.moveSpeedY = Math.floor(distanceY / 10)
 
     // 각 타겟의 이동 속도값(절대값으로 얻음)
-    const absTargetSpeedX = Math.abs(this.targetObject.speedX)
-    const absTargetSpeedY = Math.abs(this.targetObject.speedY)
+    const absTargetSpeedX = Math.abs(this.targetObject._speedX)
+    const absTargetSpeedY = Math.abs(this.targetObject._speedY)
     let minSpeedX = (this.elapsedFrame / 20) + absTargetSpeedX
     let minSpeedY = (this.elapsedFrame / 20) + absTargetSpeedY
 
@@ -502,14 +528,17 @@ export class WeaponData extends FieldData {
     let targetEnemy = fieldState.getRandomEnemyObject()
     if (targetEnemy != null) {
       this.setMoveDirection() // 이동 방향 삭제
-      for (let divideSpeed = 30; divideSpeed > 2; divideSpeed--) {
-        this.moveSpeedX = (targetEnemy.centerX - this.centerX) / divideSpeed
-        this.moveSpeedY = (targetEnemy.centerY - this.centerY) / divideSpeed
-
-        if (Math.abs(this.moveSpeedX) >= minSpeed && Math.abs(this.moveSpeedY) >= minSpeed) {
-          break
-        }
+      
+      let speedX = (targetEnemy.centerX - this.centerX) / 30
+      let speedY = (targetEnemy.centerY - this.centerY) / 30
+      if (Math.abs(speedX) < minSpeed && Math.abs(speedY) < minSpeed) {
+        // speedX와 speedY의 값을 비교하여 가장 높은 값을 최소 속도에 맞춰지도록 조정합니다.
+        let mul = Math.abs(speedX) < Math.abs(speedY) ? minSpeed / Math.abs(speedY) : minSpeed / Math.abs(speedX)
+        speedX *= mul
+        speedY *= mul
       }
+
+      this.setMoveSpeed(speedX, speedY)
     } else {
       this.setMoveDirection('right')
       this.moveSpeedX = 20
@@ -522,8 +551,8 @@ export class WeaponData extends FieldData {
    * 
    * 필드 객체보다 더 많은 데이터를 저장합니다.
    */
-  getSaveData () {
-    let saveData = super.getSaveData()
+  fieldBaseSaveData () {
+    let saveData = super.fieldBaseSaveData()
     let addData = {
       // 추적 여부
       chaseMissCount: this.chaseMissCount,
@@ -552,8 +581,9 @@ class MultyshotData extends WeaponData {
   /**
    * optionList
    * 0. speedY = 0, 1. chase(추적) = false
+   * @param {number[] | string[]} option 개체의 옵션
    */
-  constructor (option) {
+  constructor (option = [0]) {
     super()
     // 옵션에 따른 값 설정
     this.moveSpeedX = 20
@@ -577,11 +607,7 @@ class MultyshotData extends WeaponData {
       imageDataInfo.weapon.multyshotBlue
     ]
 
-    this.setAutoImageData(imageSrc.weaponImage, imageDataList[colorNumber])
-
-    this.mainType = 'multyshot'
-    this.subType = 'multyshot'
-    this.id = ID.weapon.multyshot
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataList[colorNumber])
   }
 }
 
@@ -592,20 +618,10 @@ class MissileData extends WeaponData {
 
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.missile, 5)
-    this.mainType = 'missile'
-    this.subType = 'missileA'
-    this.id = ID.weapon.missile
-    this.isChaseType = true
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.missile, 5)
     this.moveSpeedX = 12
-    this.repeatCount = 5
-    this.repeatDelay = new DelayData(6)
-    this.isMultiTarget = true
-    this.maxTarget = 100
     this.state = MissileData.STATE_NORMAL
-    this.splashEffectId = ID.effect.missile
-
-    this.splashEffect = new CustomEffect(imageSrc.weaponEffect.missile, imageDataInfo.weaponEffect.missile, this.getSplashArea().width, this.getSplashArea().height)
+    this.splashEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.missile, this.getSplashArea().width, this.getSplashArea().height)
   }
 
   /**
@@ -660,6 +676,7 @@ class MissileData extends WeaponData {
     const splashArea = this.getSplashArea()
     this.processHitObject(splashArea)
 
+    this.splashEffect.setWidthHeight(splashArea.width, splashArea.height)
     fieldState.createEffectObject(this.splashEffect, splashArea.x, splashArea.y)
   }
 }
@@ -671,20 +688,27 @@ class MissileRocket extends MissileData {
    */
   constructor (option = [2]) {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.missileRocket)
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.missileRocket)
     this.subType = 'missileRocket'
     this.id = ID.weapon.missileRocket
-    this.isChaseType = false
-    this.moveSpeedX = 12
+    this.moveSpeedX = 24
     this.moveSpeedY = option.length >= 1 ? option[0] : -2
-    this.state = MissileData.STATE_ROCKET
-    this.repeatCount = 6
-    this.repeatDelay = new DelayData(6)
+    this.state = MissileData.STATE_NORMAL
   }
 
-  processAttack () {
-    if (this.repeatDelay.check()) {
-      this.processAttackSplash()
+  getSplashArea () {
+    return {
+      x: this.x - 70,
+      y: this.y - 70,
+      width: 140,
+      height: 140
+    }
+  }
+
+  processMove () {
+    super.processMove()
+    if (this.state === MissileData.STATE_SPLASH) {
+      this.moveSpeedX = 4
     }
   }
 
@@ -708,10 +732,7 @@ class Arrow extends WeaponData {
       imageDataInfo.weapon.arrowBrown
     ]
     let imageDataNumber = this.moveSpeedY >= 0 ? 0 : 1
-    this.setAutoImageData(imageSrc.weaponImage, imageDataList[imageDataNumber])
-    this.mainType = 'bounce'
-    this.subType = 'arrow'
-    this.id = ID.weapon.arrow
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataList[imageDataNumber])
     this.moveSpeedX = 17
     this.bounceMaxCount = 6
     this.bounceCount = 0
@@ -763,12 +784,7 @@ class Laser extends WeaponData {
    */
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.laser)
-    this.mainType = 'laser'
-    this.subType = 'laser'
-    this.id = ID.weapon.laser
-    this.repeatCount = 5
-    this.maxHitCount = 16
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.laser)
     this.moveDirectionX = FieldData.direction.RIGHT
     this.setMoveSpeed(20, 0)
   }
@@ -779,8 +795,7 @@ class LaserBlue extends Laser {
     super()
     this.subType = 'laserBlue'
     this.id = ID.weapon.laserBlue
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.laserBlue)
-    this.isChaseType = true
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.laserBlue)
     this.chaseLimit = 1 // 적 1번만 추적 가능
     this.moveSpeedX = 0
     this.targetY = 0
@@ -815,16 +830,9 @@ class Sapia extends WeaponData {
    * option list
    * 0. sapiaShotAttack 사피아샷의 공격력
    */
-  constructor (option = [352]) {
+  constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.sapia)
-    this.sapiaShotAttack = option.length >= 1 ? option[0] : 352
-    this.mainType = 'sapia'
-    this.subType = 'sapia'
-    this.id = ID.weapon.sapia
-    this.repeatCount = 4
-    this.repeatDelay = new DelayData(10)
-    this.isChaseType = true
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.sapia)
   }
 
   processMove () {
@@ -832,26 +840,14 @@ class Sapia extends WeaponData {
     // sapiaShot은 일반 로직 사용
     if (this.subType === 'sapia') {
       if (this.targetObject) {
-        this.x = this.targetObject.x
-        this.y = this.targetObject.y
+        this.x = this.targetObject.centerX
+        this.y = this.targetObject.centerY
       } else {
         this.x = fieldState.getPlayerObject().x + 200
         this.y = fieldState.getPlayerObject().y
       }
     } else {
       super.processMove()
-    }
-  }
-
-  /**
-   * 감지 범위 얻기
-   */
-  getDetectArea () {
-    return {
-      x: this.x - 300,
-      y: this.y - 200,
-      width: 600,
-      height: 400
     }
   }
 
@@ -865,41 +861,39 @@ class Sapia extends WeaponData {
 
     // targetObject가 null이 아닐 경우, 정상적으로 적을 추적
     if (this.targetObject != null) {
+      // 중간에 적이 죽었거나 삭제되었는지를 확인
       if (this.targetObject.isDeleted || this.targetObject.isDied) {
         this.targetObject = null
       }
     } else {
       // targetObject가 없다면, 새로운 적을 찾음
       const enemyObject = fieldState.getEnemyObject()
+      if (enemyObject.length <= 0) return
+      
+      const MIN_DISTANCE = 600
+      let minDistance = MIN_DISTANCE // 최소거리 기본값 (이 값이 없으면 다른값과 비교할 수 없어 대상을 추적할 수 없음)
+      let targetNumber = -1
+      for (let i = 0; i < enemyObject.length; i++) {
+        let enemy = enemyObject[i]
+        let distance = Math.abs(this.x - enemy.x) + Math.abs(this.y - enemy.y)
 
-      // 감지 범위
-      const detectArea = this.getDetectArea()
-
-      // 랜덤한 적을 타격하기 위해...
-      // 밑에 for문이 두개 있는 까닭은 randomIndex 적이 영역 내에 없을 때 다른 모든 적을 검색하기 위해서입니다.
-      const randomIndex = Math.floor(Math.random() * enemyObject.length)
-
-      // randomIndex부터 맨 끝번호까지 적이 영역 내에 있는지 검사
-      for (let i = randomIndex; i < enemyObject.length; i++) {
-        const currentEnemy = enemyObject[i]
-        if (collision(detectArea, currentEnemy)) {
-          this.targetObject = currentEnemy
-          return
+        if (distance < minDistance && distance <= MIN_DISTANCE) {
+          minDistance = distance
+          targetNumber = i
         }
       }
 
-      // 그리고, 0번부터 randomIndex까지 적이 영역 내에 있는지 검사
-      for (let i = 0; i < randomIndex; i++) {
-        const currentEnemy = enemyObject[i]
-        if (collision(detectArea, currentEnemy)) {
-          this.targetObject = currentEnemy
-          return
-        }
-      }
+      // 타겟번호를 못찾으면 무효
+      if (targetNumber < 0) return
+
+      this.targetObject = enemyObject[targetNumber]
     }
   }
 
   /**
+   * 사피아의 개편으로 사피아는 더이상 추가 샷을 발사하지 않습니다.
+   * 
+   * (이 문장은 이전 버전에 해당하는 문장입니다.)
    * 사피아샷이 계속 늘어나는걸 막기 위해, 공격 로직을 subType별로 분리하였습니다.
    * 사피아샷은 일반 오브젝트랑 공격방식이 똑같습니다.
    * 그러나, 사피아는 사피아샷을 추가 생성하기 때문에, 사피아샷의 공격방식을 분리하지 않으면
@@ -917,20 +911,16 @@ class Sapia extends WeaponData {
     // 반복딜레이가 넘지 않았다면 함수 강제 종료
     if (!this.repeatDelay.check()) return
 
-    // 공격 반복 쇳수 감소
-    this.repeatCount--
-
-    // 플레이어의 위치 (사피아샷은 플레이어 위치에서 발사됩니다.)
-    const playerX = fieldState.getPlayerObject().x
-    const playerY = fieldState.getPlayerObject().y
-
-    // 타겟팅 된 오브젝트가 있을 경우 적을 타격
+    // 타겟팅 된 오브젝트가 있을 경우 적을 타격 하고 남은 공격 횟수 감소
     if (this.targetObject) {
       this.damageProcess(this.targetObject)
+      this.repeatCount--
     }
 
-    // 추가 샷 발사 (무기가 무기를 생성...)
-    fieldState.createWeaponObject(ID.weapon.sapiaShot, playerX, playerY, this.sapiaShotAttack, this.x, this.y)
+    // 해당 무기는 1초가 지나면 삭제됨
+    if (this.elapsedFrame >= 60) {
+      this.isDeleted = true
+    }
   }
 
   display () {
@@ -948,7 +938,7 @@ class SapiaShot extends Sapia {
    */
   constructor (option = [0, 0]) {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.sapiaShot)
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.sapiaShot)
     this.id = ID.weapon.sapiaShot
     this.subType = 'sapiaShot'
     this.targetX = option.length >= 1 ? option[0] : 0
@@ -989,11 +979,7 @@ class SapiaShot extends Sapia {
 class Parapo extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.parapo)
-    this.mainType = 'parapo'
-    this.subType = 'parapo'
-    this.id = ID.weapon.parapo
-    this.isChaseType = true
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.parapo)
   }
 
   processAttack () {
@@ -1012,10 +998,11 @@ class Parapo extends WeaponData {
       const enemyCenterY = hitEnemy.y + (hitEnemy.height / 2)
       const shockWaveSize = 100
       const shockWaveSizeHalf = shockWaveSize / 2
-      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX - shockWaveSize, enemyCenterY - shockWaveSizeHalf, this.attack, 'left')
-      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX, enemyCenterY - shockWaveSizeHalf, this.attack, 'right')
-      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX - shockWaveSizeHalf, enemyCenterY - shockWaveSize, this.attack, 'up')
-      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX - shockWaveSizeHalf, enemyCenterY, this.attack, 'down')
+      const divideAttack = Math.floor(this.attack / 4)
+      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX - shockWaveSize, enemyCenterY - shockWaveSizeHalf, divideAttack, 'left')
+      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX, enemyCenterY - shockWaveSizeHalf, divideAttack, 'right')
+      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX - shockWaveSizeHalf, enemyCenterY - shockWaveSize, divideAttack, 'up')
+      fieldState.createWeaponObject(ID.weapon.parapoShockWave, enemyCenterX - shockWaveSizeHalf, enemyCenterY, divideAttack, 'down')
       this.repeatCount--
     }
   }
@@ -1033,23 +1020,22 @@ class ParapoShockwave extends Parapo {
     this.height = 100
     this.moveSpeedX = 0
     this.moveSpeedY = 0
-    this.isChaseType = false // 이 무기는 움직이지 않기 때문에 적을 추적하지 않습니다.
-    this.setMultiTarget(16) // 스플래시처럼 다수 타격
 
     this.parapoEffect = null
     let direction = option.length >= 1 ? option[0] : 'left'
     switch (direction) {
+      default:
       case ParapoShockwave.direction.LEFT:
-        this.parapoEffect = new CustomEffect(imageSrc.weaponEffect.parapo, imageDataInfo.weaponEffect.parapoLeft, 100, 100, 1)
+        this.parapoEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.parapoLeft, 100, 100, 1)
         break
       case ParapoShockwave.direction.RIGHT:
-        this.parapoEffect = new CustomEffect(imageSrc.weaponEffect.parapo, imageDataInfo.weaponEffect.parapoRight, 100, 100, 1)
+        this.parapoEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.parapoRight, 100, 100, 1)
         break
       case ParapoShockwave.direction.UP:
-        this.parapoEffect = new CustomEffect(imageSrc.weaponEffect.parapo, imageDataInfo.weaponEffect.parapoUp, 100, 100, 1)
+        this.parapoEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.parapoUp, 100, 100, 1)
         break
       case ParapoShockwave.direction.DOWN:
-        this.parapoEffect = new CustomEffect(imageSrc.weaponEffect.parapo, imageDataInfo.weaponEffect.parapoDown, 100, 100, 1)
+        this.parapoEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.parapoDown, 100, 100, 1)
         break
     }
   }
@@ -1068,9 +1054,7 @@ class ParapoShockwave extends Parapo {
 class Blaster extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.blaster)
-    this.mainType = 'blaster'
-    this.subType = 'blaster'
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.blaster)
     this.moveSpeedX = 24
     this.moveSpeedY = 0
   }
@@ -1079,7 +1063,7 @@ class Blaster extends WeaponData {
 class BlasterMini extends Blaster {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.blasterMini)
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.blasterMini)
     this.subType = 'blastermini'
     this.isLineChase = true
   }
@@ -1092,9 +1076,7 @@ class Sidewave extends WeaponData {
    */
   constructor (option = ['']) {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.sidewave)
-    this.mainType = 'sidewave'
-    this.subType = 'sidewave'
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.sidewave)
     this.moveSpeedX = 11
     
     let optionResult = option[0] != null ? option[0].split(' ') : [0, 'right']
@@ -1102,7 +1084,7 @@ class Sidewave extends WeaponData {
     this.moveSpeedY = Number(optionResult[1])
 
     if (optionResult[0] === Sidewave.direction.LEFT) {
-      this.enimation.flip = 1 // 좌우 반전 (왼쪽으로 무기가 이동하므로)
+      if (this.enimation) this.enimation.flip = 1 // 좌우 반전 (왼쪽으로 무기가 이동하므로)
       this.moveDirectionX = Sidewave.direction.LEFT
     }
   }
@@ -1111,9 +1093,7 @@ class Sidewave extends WeaponData {
 class Rapid extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.rapid)
-    this.mainType = 'rapid'
-    this.subType = 'rapid'
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.rapid)
     this.setMoveSpeed(40, 0)
   }
 }
@@ -1124,9 +1104,7 @@ class Ring extends WeaponData {
    */
   constructor (option = ['right']) {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.ring)
-    this.mainType = 'ring'
-    this.subType = 'ring'
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.ring)
 
     let ringDirection = option[0]
     this.setRingDirection(ringDirection, 16)
@@ -1208,10 +1186,8 @@ class Ring extends WeaponData {
 class Seondanil extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.seondanil)
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.seondanil)
     this.moveDelay = new DelayData(60) // 발사 대기 시간
-    this.mainType = 'seondanil'
-    this.subType = 'seondanil'
     this.setMoveSpeed(0, 0)
   }
 
@@ -1238,35 +1214,27 @@ class Seondanil extends WeaponData {
 class Boomerang extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.boomerang)
-    this.mainType = 'boomerang'
-    this.subType = 'boomerang'
-    this.maxHitCount = 10
-    this.repeatCount = 10
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.boomerang)
     this.moveSpeedY = 2 - (Math.random() * 4)
+    this.BASE_SPEED = 0.1
+    this.moveLength = 0
   }
 
   processMove () {
     // 부메랑은 천천히 가속하면서 앞으로 가다가, 뒤로 급격히 후진합니다.
-    if (this.elapsedFrame <= 60) {
-
-      this.moveSpeedX += 0.07
-    } else if (this.elapsedFrame <= 120) {
-
-      this.moveSpeedX += 0.04
-    } else if (this.elapsedFrame <= 180) {
-
-      this.moveSpeedX -= 0.05
-    } else if (this.elapsedFrame <= 240) {
-
-      this.moveSpeedX -= 0.09
-    } else if (this.elapsedFrame >= 240) {
-
-      this.moveSpeedX -= 0.17
+    if (this.elapsedFrame <= 30) {
+      this.moveSpeedX += this.BASE_SPEED
+    } else if (this.elapsedFrame <= 60) {
+      this.moveSpeedX += this.BASE_SPEED * 3
     }
 
     this.degree += 6
+    this.moveLength += this.moveSpeedX
     super.processMove()
+
+    if (this.moveLength >= 600) {
+      this.moveSpeedX -= this.BASE_SPEED * 4
+    }
   }
 }
 
@@ -1275,10 +1243,7 @@ class SubMultyshot extends WeaponData {
     super()
     // 멀티샷 grey를 서브웨폰으로 취급하기로 변경되었습니다. (2022/12/05)
     // 이유는 서브웨폰 모양이 마음에 안들었고, 새로 무기를 만드는것은 귀찮기 때문입니다.
-    this.setAutoImageData(imageSrc.weaponImage, imageDataInfo.weapon.multyshotGrey)
-    this.mainType = 'subweapon'
-    this.subType = 'subweapon'
-    this.isChaseType = true
+    this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.multyshotGrey)
   }
 }
 
@@ -1287,24 +1252,18 @@ class SkillMultyshot extends WeaponData {
     // 기본적으로 skillMultyshot은 적을 추적함.
     // 다만 그외의 다른 특징 없음
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.multyshot)
-    this.mainType = 'skill'
-    this.subType = 'multyshot'
-    this.id = ID.weapon.skillMultyshot
-    this.isChaseType = true
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.multyshot)
   }
 }
 
 class SkillMissile extends MissileData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.missile, 1)
-    this.mainType = 'skill'
-    this.subType = 'missile'
-    this.id = ID.weapon.skillMissile
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.missile, 1)
     this.repeatCount = 10
     this.repeatDelay = new DelayData(4)
-    this.splashEffect = new CustomEffect(imageSrc.skillEffect.missile, imageDataInfo.skillEffect.missile)
+    this.splashEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillMissile)
+    this.splashEffect.setWidthHeight(this.getSplashArea().width, this.getSplashArea().height)
   }
 
   getSplashArea () {
@@ -1331,31 +1290,19 @@ class SkillArrow extends Arrow {
   // Arrow를 상속받아서, 그대로 옵션으로 활용
   constructor (option = [2]) {
     super(option)
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.arrow, 3)
-    this.mainType = 'skill'
-    this.subType = 'arrow'
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.arrow, 3)
     this.color = 'purple'
-    this.id = ID.weapon.skillArrow
     this.moveSpeedX = 16
-    this.repeatCount = 4
     this.bounceMaxCount = 12
-    this.maxHitCount = 4
   }
 }
 
 class SkillLaser extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.laser)
-    this.mainType = 'skill'
-    this.subType = 'laser'
-    this.id = ID.weapon.skillLaser
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.laser)
     this.moveSpeedX = 0
     this.moveSpeedY = 0
-    this.repeatCount = 60
-    this.repeatDelay = new DelayData(4)
-    this.isMultiTarget = true
-    this.maxTarget = 20
   }
 
   // 이 레이저는 왼쪽에서 나온다음, x축이 0위치로 고정되고, y축은 플레이어를 따라다닙니다.
@@ -1395,20 +1342,13 @@ class SkillLaser extends WeaponData {
 class SkillSapia extends Sapia {
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'sapia'
-    this.id = ID.weapon.skillSapia
-    this.isChaseType = true
-    this.repeatCount = 40
     this.useMaxCount = this.repeatCount
-    this.repeatDelay = new DelayData(6)
-    this.setMultiTarget(4)
     this.callCount = 0
 
     let rect = imageDataInfo.skill.sapiaRect
     let circle = imageDataInfo.skill.sapiaCircle
-    this.enimationSapiaRect = new EnimationData(imageSrc.skillImage, rect.x, rect.y, rect.width, rect.height, rect.frame, 4, -1)
-    this.enimationSapiaCircle = new EnimationData(imageSrc.skillImage, circle.x, circle.y, circle.width, circle.height, circle.frame, 4, -1)
+    this.enimationSapiaRect = new EnimationData(imageSrc.weapon.skill, rect.x, rect.y, rect.width, rect.height, rect.frame, 4, -1)
+    this.enimationSapiaCircle = new EnimationData(imageSrc.weapon.skill, circle.x, circle.y, circle.width, circle.height, circle.frame, 4, -1)
   }
 
   /**
@@ -1455,22 +1395,15 @@ class SkillParapo extends Parapo {
 
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'parapo'
-    this.id = ID.weapon.skillParapo
-
     // 참고: 파라포는 스킬 이미지가 없고, 이펙트만 있습니다.
     // 따라서 객체의 크기를 이펙트 크기로 얻어옵니다.
-    this.width = imageDataInfo.skillEffect.parapo.width
-    this.height = imageDataInfo.skillEffect.parapo.height
-    this.isChaseType = true
+    this.width = imageDataInfo.weaponEffect.skillParapo.width
+    this.height = imageDataInfo.weaponEffect.skillParapo.height
     this.moveSpeedX = 4
     this.moveSpeedY = 0
     this.state = SkillParapo.STATE_NORMAL
-    this.repeatCount = 1 // 참고: 이 스킬은 파라포 무기와 다르게 반복횟수가 1입니다.
-    this.setMultiTarget(16)
 
-    this.parapoEffect = new CustomEffect(imageSrc.skillEffect.parapo, imageDataInfo.skillEffect.parapo, this.width, this.height, 1)
+    this.parapoEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillParapo, this.width, this.height, 1)
   }
 
   processMove () {
@@ -1519,6 +1452,9 @@ class SkillParapo extends Parapo {
     // 충격파 이펙트
     fieldState.createEffectObject(this.parapoEffect, shockwaveArea.x, shockwaveArea.y)
     this.processHitObject(shockwaveArea) // 적 충돌 처리
+    if (fieldState.getEnemyObjectCount() <= 1) {
+      this.processHitObject(shockwaveArea) // 더블어택
+    }
   }
 
   display () {
@@ -1529,10 +1465,7 @@ class SkillParapo extends Parapo {
 class SkillBlaster extends Blaster {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.blaster)
-    this.mainType = 'skill'
-    this.subType = 'blaster'
-    this.id = ID.weapon.skillBlaster
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.blaster)
     this.moveSpeedX = 32
 
     // 희한하게도, 이 무기는 직선에서 약간 벗어나있음.
@@ -1547,12 +1480,9 @@ class SkillBlaster extends Blaster {
 class SkillSidewave extends Sidewave {
   constructor (option = [0, 'right']) {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.sidewave)
-    this.mainType = 'skill'
-    this.subType = 'sidewave'
-    this.id = ID.weapon.skillSidewave
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.sidewave)
     this.moveSpeedX = 22
-    this.moveSpeedY = option[0]
+    this.moveSpeedY = Number(option[0])
   }
 }
 
@@ -1562,19 +1492,14 @@ class SkillSword extends WeaponData {
 
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.sword)
-    this.mainType = 'skill'
-    this.subType = 'sword'
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.sword)
     this.state = SkillSword.STATE_MOVE
     this.moveDelay = new DelayData(60)
-    this.repeatDelay = new DelayData(3)
     this.soundDelay = new DelayData(6)
     this.moveSpeedX = 2
-    this.isChaseType = true
-    this.repeatCount = 80
 
     let moveSword = imageDataInfo.skill.swordMove
-    this.moveEnimation = new EnimationData(imageSrc.skillImage, moveSword.x, moveSword.y, moveSword.width, moveSword.height, moveSword.frame, 1, -1)
+    this.moveEnimation = new EnimationData(imageSrc.weapon.skill, moveSword.x, moveSword.y, moveSword.width, moveSword.height, moveSword.frame, 1, -1)
   }
 
   processChase () {
@@ -1606,7 +1531,7 @@ class SkillSword extends WeaponData {
         }        
 
         // 타겟당한 적을 기준으로 이펙트 생성
-        let hitEffect = new CustomEffect(imageSrc.skillEffect.swordHit, imageDataInfo.skillEffect.swordHit, this.targetObject.width, this.targetObject.height)
+        let hitEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSwordHit, this.targetObject.width, this.targetObject.height)
         fieldState.createEffectObject(hitEffect, this.targetObject.x, this.targetObject.y)
       }
     }
@@ -1634,10 +1559,7 @@ class SkillSword extends WeaponData {
 class SkillHyperBall extends WeaponData {
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.hyperBall)
-    this.mainType = 'skill'
-    this.subType = 'hyperBall'
-    this.repeatCount = 6
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.hyperBall)
     this.maxHitCount = 6
     this.isLineChase = true
     this.bounceCount = 0
@@ -1674,8 +1596,8 @@ class SkillCriticalChaser extends WeaponData {
     super()
     this.mainType = 'skill'
     this.subType = 'criticalchaser'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.criticalChase)
-    this.splashEffect = new CustomEffect(imageSrc.skillEffect.criticalChaser, imageDataInfo.skillEffect.criticalChase)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.criticalChase)
+    this.splashEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillCriticalChaser)
     this.repeatCount = 4
     this.repeatDelay = new DelayData(6)
     this.attackDelay = new DelayData(2)
@@ -1745,9 +1667,9 @@ class SkillPileBunker extends WeaponData {
     // no image and no enimation
 
     this.areaEffect = [
-      new CustomEffect(imageSrc.skillEffect.pileBunker, imageDataInfo.skillEffect.pileBunker1, 120, 80),
-      new CustomEffect(imageSrc.skillEffect.pileBunker, imageDataInfo.skillEffect.pileBunker2, 120, 80),
-      new CustomEffect(imageSrc.skillEffect.pileBunker, imageDataInfo.skillEffect.pileBunker3, 120, 80)
+      new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillPileBunker1, 120, 80),
+      new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillPileBunker2, 120, 80),
+      new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillPileBunker3, 120, 80)
     ]
 
     this.repeatCount = 16
@@ -1822,7 +1744,7 @@ class SkillSantansu extends WeaponData {
     super()
     this.mainType = 'skill'
     this.subType = 'santansu'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.santansu)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.santansu)
     this.repeatCount = 6
     this.repeatDelay = new DelayData(9)
     this.state = SkillSantansu.STATE_SANTANSU
@@ -1834,9 +1756,9 @@ class SkillSantansu extends WeaponData {
 
     this.setMultiTarget(8)
 
-    this.santansuEffectUp = new CustomEffect(imageSrc.skillEffect.santansu, imageDataInfo.skillEffect.santansuUp, 160, 160)
-    this.santansuEffectDown = new CustomEffect(imageSrc.skillEffect.santansu, imageDataInfo.skillEffect.santansuDown, 160, 160)
-    this.santansuEffectWater = new CustomEffect(imageSrc.skillEffect.santansu, imageDataInfo.skillEffect.santansuWater, 160, 160)
+    this.santansuEffectUp = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSantansuUp, 160, 160)
+    this.santansuEffectDown = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSantansuDown, 160, 160)
+    this.santansuEffectWater = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSantansuWater, 160, 160)
   }
 
   afterInit () {
@@ -1921,13 +1843,9 @@ class SkillWhiteflash extends WeaponData {
     super()
     this.mainType = 'skill'
     this.subType = 'whiteflash'
-    this.repeatCount = 40
-    this.setMultiTarget(12)
-    this.repeatDelay = new DelayData(4)
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.whiteflash, 6)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.whiteflash, 6)
     this.setWidthHeight(120, 120)
     this.moveSpeedX = 30
-    this.isChaseType = true // 해당 무기는 적을 추적하는 방식으로 이동하기 때문에 추적 타입입니다.
     this.chaseLimit = 360
   }
 
@@ -1979,11 +1897,9 @@ class SkillWhiteflash extends WeaponData {
 class SkillWhiteFlashSmoke extends SkillWhiteflash {
   constructor () {
     super()
-    this.mainType = 'skillsub'
-    this.subType = 'whiteflashsmoke'
     this.setMoveSpeed(0, 0)
     this.setWidthHeight(240, 240)
-    this.splashEffect = new CustomEffect(imageSrc.skillEffect.whiteflash, imageDataInfo.skillEffect.whiteflash, this.width, this.height)
+    this.splashEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillWhiteflash, this.width, this.height)
     this.repeatCount = 1 // 1번만 공격 가능(연타 아님)
   }
 
@@ -1999,9 +1915,7 @@ class SkillRing extends Ring {
    */
   constructor (option = ['right']) {
     super()
-    this.mainType = 'skill'
-    this.subType = 'ring'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.ring)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.ring)
     this.repeatCount = 1
     this.maxHitCount = 4
 
@@ -2016,9 +1930,7 @@ class SkillRing extends Ring {
 class SkillRapid extends WeaponData {
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'rapid'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.rapid)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.rapid)
     this.setMoveSpeed(40, 0)
   }
 }
@@ -2030,13 +1942,13 @@ class SkillSeondanil extends WeaponData {
 
   constructor () {
     super()
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.seondanil)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.seondanil)
     this.setMoveSpeed(0, 0)
     this.repeatCount = 50
     this.repeatDelay = new DelayData(3)
     this.state = SkillSeondanil.STATE_STOP
     this.moveDelay = new DelayData(60)
-    this.hitEffect = new CustomEffect(imageSrc.skillEffect.seondanil, imageDataInfo.skillEffect.seondanil)
+    this.hitEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSeondanilHit)
   }
 
   processMove () {
@@ -2074,10 +1986,7 @@ class SkillSeondanil extends WeaponData {
 class SkillSeondanilMini extends SkillSeondanil {
   constructor () {
     super()
-    this.mainType = 'skillsub'
-    this.subType = 'seondanilmini'
     this.state = SkillSeondanil.STATE_MINI
-    this.repeatCount = 1 // 이 무기는 1번만 공격 가능
   }
 
   afterInit () {
@@ -2097,19 +2006,15 @@ class SkillSeondanilMini extends SkillSeondanil {
 class SkillHanjumeok extends WeaponData {
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'hanjumeok'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.hanjumoek, 4)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.hanjumoek, 4)
     this.setWidthHeight(300, 210)
-    this.repeatCount = 30
-    this.repeatDelay = new DelayData(5)
     this.moveSpeedX = 1
     this.setMultiTarget(10)
 
-    this.hitEffect = new CustomEffect(imageSrc.skillImage, imageDataInfo.skill.hanjumoek)
+    this.hitEffect = new CustomEffect(imageSrc.weapon.skill, imageDataInfo.skill.hanjumoek)
 
     let splashArea = this.getSplashArea()
-    this.splashEffect = new CustomEffect(imageSrc.skillEffect.hanjumoekSplash, imageDataInfo.skillEffect.hanjumeokSplash, splashArea.width, splashArea.height, 2)
+    this.splashEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillHanjumeokSplash, splashArea.width, splashArea.height, 2)
 
     this.STATE_JUMEOK = 'jumeok'
     this.STATE_SPLASH = 'splash'
@@ -2179,7 +2084,9 @@ class SkillHanjumeok extends WeaponData {
       let returnEffect = fieldState.createEffectObject(this.hitEffect, effectX, effectY)
 
       // 에니메이션 각도 수정 (객체의 각도를 수정하는것은 의미가 없음.)
-      returnEffect.enimation.degree = Math.random() * 360
+      if (returnEffect != null && returnEffect.enimation != null) {
+        returnEffect.enimation.degree = Math.random() * 360
+      }
     }
 
     // 사운드 출력 (여러 객체가 충돌하여도 1번만 출력해야 합니다.)
@@ -2196,12 +2103,8 @@ class SkillHanjumeok extends WeaponData {
 class SkillBoomerang extends WeaponData {
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'boomerang'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.boomerang)
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.boomerang)
     this.setWidthHeight(this.width * 3, this.height * 3)
-    this.repeatCount = 180
-    this.maxHitCount = 10
   }
 
   processMove () {
@@ -2228,14 +2131,9 @@ class SkillMoon extends WeaponData {
 
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'moon'
-    this.setAutoImageData(imageSrc.skillImage, imageDataInfo.skill.moon)
-    this.repeatCount = 180
-    this.setMultiTarget(9999) // 이론상 무제한의 적 공격 가능
+    this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.moon)
     this.setMoveSpeed(0, 0)
     this.attackDelay = new DelayData(60)
-    this.repeatDelay = new DelayData(1)
     this.state = SkillMoon.STATE_WAIT
 
     /** 
@@ -2275,6 +2173,10 @@ class SkillMoon extends WeaponData {
       soundSystem.play(soundSrc.skill.skillMoonAttack)
     } else if (this.state === SkillMoon.STATE_ATTACK && this.repeatDelay.check()) {
       this.processHitObject(this.getSplashArea())
+      if (fieldState.getEnemyObjectCount() <= 1) {
+        this.processHitObject() // 더블 어택...
+      }
+
       this.degree = Math.floor(Math.random() * 360)
       let size = Math.floor(Math.random() * 40) + 180
       this.setWidthHeight(size, size)
@@ -2294,6 +2196,9 @@ class SkillMoon extends WeaponData {
   }
 }
 
+/**
+ * @type {Map<number, WeaponData | any>}
+ */
 export const dataExportWeapon = new Map()
 dataExportWeapon.set(ID.weapon.arrow, Arrow)
 dataExportWeapon.set(ID.weapon.blaster, Blaster)
