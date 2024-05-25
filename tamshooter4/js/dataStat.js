@@ -211,32 +211,42 @@ export class StatRoundBalance {
   }
 }
 
-export class StatEquipMent {
+export class StatItem {
   /**
-   * 장비에 대한 기본적인 정보
-   * 
-   * (참고: 만약 특수 스탯을 구현하고 싶다면, 내장 함수에서 다른 함수를 추가로 호출해 스탯을 직접 지정해야함)
-   * 
-   * @param {number} itemIconNumber 아이템에 해당하는 아이콘 번호 -1인경우 아이콘 없음
+   * 아이템의 정보를 생성 (아이템의 구현은 다른곳에서 처리해야함)
+   * @param {number} iconNumber 아이콘 번호 (-1인경우, 없음)
+   * @param {string} type 아이템 타입 (equipment, item)
    * @param {string} name 이름
-   * @param {number} baseCost 장비의 기본 가격
+   * @param {number} price 가격 (참고: 판매가격은 비용의 1/10임)
+   * @param {string} info 정보
+   */
+  constructor (iconNumber = -1, type, name = '', price = 1000, info = '') {
+    /** 아이콘 번호 */ this.iconNumber = iconNumber
+    /** 아이템 타입 */ this.type = type
+    /** 아이템의 이름 */ this.name = name
+    /** 아이템의 기본 가격 */ this.price = price
+    /** 아이템의 정보 */ this.info = info
+
+    /** 장비 아이템 착용 제한 레벨 */ this.equipmentRequireLevel = 0
+    /** 공격력 */ this.equipmentAttack = 0
+    /** 장비 아이템의 업그레이드 비용 */ this.equipmentUpgradeCost = 0
+  }
+
+  /**
+   * 장비에 대한 기본적인 정보 (장비 아이템이 아니면 접근 불가)
+   * 
    * @param {number} requireLevel 장비를 장착하기 위해 필요한 레벨
    * @param {number} attack 장비의 공격력
    * @param {number} upgradeCost 장비의 업그레이드 기본 비용
-   * @param {string} info 장비의 정보
    */
-  constructor (itemIconNumber = -1, name, baseCost, requireLevel, attack, upgradeCost, info) {
-    this.name = name
-    this.itemIconNumber = itemIconNumber
-    this.baseCost = baseCost
-    this.requireLevel = requireLevel
-    this.attack = attack
-    this.upgradeCost = upgradeCost
-    this.info = info
-
-    /** 공격속도 증가 퍼센트 (단, 무기에만 적용됨) */ this.weaponSpeedPlusPercent = 0
-    /** 스킬 쿨다운 퍼센트 (단, 스킬에만 적용됨) */ this.skillCoolDownPercent = 0
+  setEquipmentInfo (requireLevel, attack, upgradeCost) {
+    this.equipmentRequireLevel = requireLevel,
+    this.equipmentAttack = attack,
+    this.equipmentUpgradeCost = upgradeCost
   }
+
+  static TYPE_ITEM = 'item'
+  static TYPE_EQUIPMENT = 'equipment'
 
   /** 장비에 대한 업그레이드 최대레벨 */
   static UPGRADE_LEVEL_MAX = 30
@@ -286,22 +296,6 @@ export class StatEquipMent {
   }
 
   static upgradeCostTotalRefundTable = this.#getUpgradeCostTotalRefundTable()
-}
-
-export class StatItem {
-  /**
-   * 아이템의 정보를 생성 (아이템의 구현은 다른곳에서 처리해야함)
-   * @param {number} iconNumber 아이콘 번호 (-1인경우, 없음)
-   * @param {string} name 이름
-   * @param {number} price 가격 (참고: 판매가격은 비용의 1/10임)
-   * @param {string} info 정보
-   */
-  constructor (iconNumber = -1, name, price, info) {
-    this.iconNumber = iconNumber
-    this.name = name
-    this.price = price
-    this.info = info
-  }
 }
 
 /**
@@ -405,6 +399,11 @@ dataExportStatPlayerSkill.set(ID.playerSkill.moon, new StatPlayerSkill('moon', 2
  */
 export const dataExportStatRound = new Map()
 dataExportStatRound.set(ID.round.UNUSED, new StatRound())
+// test
+dataExportStatRound.set(ID.round.test1Enemy, new StatRound(8, 'TEST1', 'enemy test', 0, 0, 9900, 0, 0, '테스트 라운드 (디버그 용도)'))
+dataExportStatRound.set(ID.round.test2Background, new StatRound(8, 'TEST2', 'background test', 0, 0, 9900, 0, 0))
+dataExportStatRound.set(ID.round.test3Round3DownTower, new StatRound(8, 'R3-TEST', 'downtower test', 20, 0, 9900, 0, 0, 'round3을 제작하는 과정에서 만들어진 테스트 라운드'))
+dataExportStatRound.set(ID.round.test4Sound, new StatRound(-1, 'TEST4', '사운드 테스트', 0, 0, 9999, 0, 0, '사운드 테스트'))
 // round 1
 dataExportStatRound.set(ID.round.round1_1, new StatRound(2, '1-1', '우주 여행 - 공허', 1, 40000, 150, 30000, 10, ''))
 dataExportStatRound.set(ID.round.round1_2, new StatRound(3, '1-2', '운석 지대', 2, 40000, 180, 36000, 11, ''))
@@ -412,7 +411,6 @@ dataExportStatRound.set(ID.round.round1_3, new StatRound(4, '1-3', '운석 지�
 dataExportStatRound.set(ID.round.round1_4, new StatRound(5, '1-4', '의식의 공간', 5, 40000, 156, 38000, 10, ''))
 dataExportStatRound.set(ID.round.round1_5, new StatRound(6, '1-5', '운석 지대 - 레드 존', 6, 40000, 210, 41000, 11, ''))
 dataExportStatRound.set(ID.round.round1_6, new StatRound(7, '1-6', '우주 여행 - 파란 행성 가는 길', 8, 40000, 154, 35000, 11, ''))
-dataExportStatRound.set(ID.round.round1_test, new StatRound(8, 'TEST1', 'TEST1', 0, 0, 9900, 0, 0, '테스트 라운드 (디버그 용도)'))
 // round 2
 dataExportStatRound.set(ID.round.round2_1, new StatRound(11, '2-1', '파란 행성 - 하늘 300km ~ 250km', 10, 50000, 150, 40000, 12, ''))
 dataExportStatRound.set(ID.round.round2_2, new StatRound(12, '2-2', '동그라미 마을', 12, 50000, 170, 44000, 12, ''))
@@ -420,7 +418,6 @@ dataExportStatRound.set(ID.round.round2_3, new StatRound(13, '2-3', '동그라�
 dataExportStatRound.set(ID.round.round2_4, new StatRound(14, '2-4', '동그라미 마을 홀', 14, 60000, 207, 52000, 14, ''))
 dataExportStatRound.set(ID.round.round2_5, new StatRound(15, '2-5', '지하실 전투', 15, 60000, 200, 32000, 14, ''))
 dataExportStatRound.set(ID.round.round2_6, new StatRound(16, '2-6', '폐허가 된 동그라미 마을', 18, 60000, 150, 48000, 13, ''))
-dataExportStatRound.set(ID.round.round2_test, new StatRound(8, 'TEST2', 'TEST2', 0, 0, 9900, 0, 0))
 // round 3
 dataExportStatRound.set(ID.round.round3_1, new StatRound(21, '3-1', '다운 타워 1', 20, 70000, 200, 71400, 16, ''))
 dataExportStatRound.set(ID.round.round3_2, new StatRound(22, '3-2', '다운 타워 2', 21, 70000, 220, 72800, 15, ''))
@@ -432,7 +429,6 @@ dataExportStatRound.set(ID.round.round3_7, new StatRound(27, '3-7', '다운 타�
 dataExportStatRound.set(ID.round.round3_8, new StatRound(28, '3-8', '다운 타워 통로 1', 26, 77000, 220, 86600, 17, ''))
 dataExportStatRound.set(ID.round.round3_9, new StatRound(29, '3-9', '다운 타워 통로 2', 26, 77000, 220, 87800, 17, ''))
 dataExportStatRound.set(ID.round.round3_10, new StatRound(19, '3-10', '동그라미 마을로 돌아가는 길', 28, 77000, 447, 160000, 18, ''))
-dataExportStatRound.set(ID.round.round3_test, new StatRound(8, 'TEST3', 'round 3 test mode', 20, 0, 9900, 0, 0, 'round3을 제작하는 과정에서 만들어진 테스트 라운드'))
 
 
 /**
@@ -465,22 +461,24 @@ dataExportStatRoundBalance.set(ID.round.round3_8, new StatRoundBalance(220 +  0,
 dataExportStatRoundBalance.set(ID.round.round3_9, new StatRoundBalance(220 + 30, 240000))
 dataExportStatRoundBalance.set(ID.round.round3_10, new StatRoundBalance(447 +  0, 460000))
 
-
-/**
- * 외부에서 사용하기 위한 장비 스탯 값
- * @type {Map<number, StatEquipMent>}
- */
-export const dataExportStatEquipment = new Map()
-dataExportStatEquipment.set(ID.equipment.standardPlusC1Blue, new StatEquipMent(0, '스탠다드 플러스 C1 블루', 1000, 20, 3000, 130, '표준적인 장비. C1모델이며, 파란색이다. \n 공격력을 증가시킨다.'))
-dataExportStatEquipment.set(ID.equipment.donggramiMugi, new StatEquipMent(1, '동그라미 무기(mugi)', 400, 0, 2700, 99999999, '동그라미 마을에서 만든 무기에요.\n이 장비는 동그라미 티켓을 이용해 강화할 수 있습니다.\n동그라미 티켓을 모아보세요! 히힛~\n성능이 약하지만 어쩔 수 없어요 흑흑 ㅠㅠ'))
-dataExportStatEquipment.set(ID.equipment.hellgiJangbi, new StatEquipMent(2, '헬기(hellgi) 장비(jangbi)' , 1300, 21, 3600, 4100, '다운타워에서 돌아다니는 헬기들의 부품을 모아 만든 특수장비. 공격속도가 10% 증가한다.'))
-
 /**
  * 외부에서 사용하기 위한 아이템 스탯 값
  * @type {Map<number, StatItem>}
  */
 export const dataExportStatItem = new Map()
-dataExportStatItem.set(ID.item.donggramiTicket, new StatItem(3, '동그라미 마을 티켓', 100, '동그라미 마을에서 여러가지 용도로 사용하는 티켓'))
-dataExportStatItem.set(ID.item.donggramiUSB, new StatItem(4, '동그라미 운영체제 USB', 1024, '동그라미 마을에서 만들어진 재미난 운영체제 파일이 담겨있는 부팅 USB'))
-dataExportStatItem.set(ID.item.hellgiComponent, new StatItem(5, '헬기(hellgi) 부품(component)', 60, '다운타워에서 등장하는 헬기들이 부서지고 남은 부품들'))
-dataExportStatItem.set(ID.item.upgradeStone, new StatItem(6, '강화석', 100, '강화할 때 필요한 아이템'))
+const EQUIP001 = new StatItem(0, StatItem.TYPE_EQUIPMENT, '스탠다드 플러스 C1 블루', 1000, '표준적인 장비. C1모델이며, 파란색이다. \n 공격력을 증가시킨다.')
+EQUIP001.setEquipmentInfo(20, 3000, 130)
+dataExportStatItem.set(ID.item.standardPlusC1Blue, EQUIP001)
+
+const EQUIP002 = new StatItem(1, StatItem.TYPE_EQUIPMENT, '동그라미 무기(mugi)', 400,  '동그라미 마을에서 만든 무기에요.\n이 장비는 동그라미 티켓을 이용해 강화할 수 있습니다.\n동그라미 티켓을 모아보세요! 히힛~\n성능이 약하지만 어쩔 수 없어요 흑흑 ㅠㅠ')
+EQUIP002.setEquipmentInfo(20, 2700, 99999999)
+dataExportStatItem.set(ID.item.donggramiMugi, EQUIP002)
+
+const EQUIP003 = new StatItem(2, StatItem.TYPE_EQUIPMENT, '헬기(hellgi) 장비(jangbi)', 1300, '다운타워에서 돌아다니는 헬기들의 부품을 모아 만든 특수장비. 공격속도가 10% 증가한다.(미구현됨)')
+EQUIP003.setEquipmentInfo(21, 3600, 4100)
+
+dataExportStatItem.set(ID.item.donggramiTicket, new StatItem(3, StatItem.TYPE_ITEM, '동그라미 마을 티켓', 100, '동그라미 마을에서 여러가지 용도로 사용하는 티켓'))
+dataExportStatItem.set(ID.item.donggramiUSB, new StatItem(4, StatItem.TYPE_ITEM, '동그라미 운영체제 USB', 1024, '동그라미 마을에서 만들어진 재미난 운영체제 파일이 담겨있는 부팅 USB'))
+dataExportStatItem.set(ID.item.hellgiComponent, new StatItem(5, StatItem.TYPE_ITEM, '헬기(hellgi) 부품(component)', 60, '다운타워에서 등장하는 헬기들이 부서지고 남은 부품들'))
+dataExportStatItem.set(ID.item.upgradeStone, new StatItem(6, StatItem.TYPE_ITEM, '강화석', 100, '강화할 때 필요한 아이템'))
+dataExportStatItem.set(ID.item.boseokTest, new StatItem(7, StatItem.TYPE_ITEM, '보석 테스트', 0, '보석 테스트 용도 아이템'))

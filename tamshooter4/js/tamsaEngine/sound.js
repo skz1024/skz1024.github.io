@@ -89,6 +89,9 @@ export class SoundSystem {
 
     /** 음악을 페이드 아웃할 때 사용하는 timeout에 대한 id */
     this.fadeOutIntervalId = 0
+
+    /** 사운드 플레이 가능 설정 */ this.soundOn = true
+    /** 음악 플레이 가능 설정 */ this.musicOn = true
   }
 
   /** 
@@ -295,6 +298,8 @@ export class SoundSystem {
    * AudioBuffer를 넣으면 playBuffer 함수를 대신 실행합니다.
    */
   play (audioSrc) {
+    if (!this.soundOn) return
+
     let getAudio = null
     let getNode = null
     if (typeof audioSrc === 'string') {
@@ -330,6 +335,8 @@ export class SoundSystem {
    * 설정하지 않을경우 해당 오디오을 전체길이로 재생
    */
   playBuffer (audioSrc, start = 0, duration = 0) {
+    if (!this.soundOn) return
+
     // 오디오버퍼가 있고, 오디오 버퍼의 형식이 맞을때만 이 함수가 실행됩니다.
     let getBuffer = this.getCacheBuffer(audioSrc)
     if (getBuffer == null) return // 버퍼가 없다면 실행 불가능
@@ -404,6 +411,7 @@ export class SoundSystem {
    * @param {number} fadeInSecond 페이드 인 시간
    */
   musicPlay (audioSrc = '', start = 0, fadeInSecond = 0) {
+    if (!this.musicOn) return
     if (audioSrc === '') return
     this.currentMusicSrc = audioSrc // 음악 경로 지정
 
@@ -436,7 +444,7 @@ export class SoundSystem {
     getMusic.loop = true // 음악 자동 루프 처리
     if (getMusic.paused) { // 음악이 일시정지 된 경우에 재생합니다.
       getMusic.play()
-      this.setCurrentMusicCurrentTime(start)
+      this.setMusicCurrentTime(start)
       this.currentMusicState = this.musicStateList.PLAYING
     }
 
@@ -455,7 +463,7 @@ export class SoundSystem {
   }
 
   /** 현재 음악의 재생 시간 강제 조정 */
-  setCurrentMusicCurrentTime (start = -1) {
+  setMusicCurrentTime (start = -1) {
     if (this.currentMusic instanceof HTMLMediaElement && start >= 0) {
       this.currentMusic.currentTime = start
     } else {
