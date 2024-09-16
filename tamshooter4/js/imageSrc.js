@@ -64,6 +64,7 @@ export class imageSrc {
     meteoriteEnemy: './image/enemy/meteoriteEnemy.png',
     jemulEnemy: './image/enemy/jemulEnemy.png',
     donggramiEnemy: './image/enemy/donggramiEnemy.png',
+    donggramiEnemyTalkList: './image/enemy/donggramiEnemyTalkList.png',
     intruderEnemy: './image/enemy/intruderEnemy.png',
     towerEnemyGroup1: './image/enemy/towerEnemyGroup1.png',
     towerEnemyGroup2: './image/enemy/towerEnemyGroup2.png',
@@ -429,6 +430,8 @@ export class imageDataInfo {
     /** 접시 던지기 */ plateThrow: {x: 600, y: 520, width: 50, height: 30, frame: 9},
     /** 접시 깨지기 */ plateBreak: {x: 600, y: 550, width: 50, height: 20, frame: 10},
     /** 캔들 + 불 이펙트 */ candleFire: {x: 900, y: 280, width: 30, height: 60, frame: 10},
+
+    /** 대화 크기 */ textArea: new ImageDataObject(0, 0, 200, 40)
   }
 
   static intruderEnemy = {
@@ -784,21 +787,24 @@ export class imageDataInfo {
   }
 
   static fieldSystem = {
-    roundClear: { x: 0, y: 0, width: 400, height: 60 },
-    gameOver: { x: 0, y: 60, width: 320, height: 60 },
-    pause: { x: 0, y: 120, width: 200, height: 60 },
-    result: { x: 200, y: 120, width: 240, height: 60 },
-    menu: { x: 450, y: 0, width: 120, height: 128 },
-    selected: { x: 450, y: 128, width: 120, height: 32 },
-    unchecked: { x: 420, y: 0, width: 30, height: 32 },
-    checked: { x: 420, y: 32, width: 30, height: 32 },
-    arrow: { x: 420, y: 64, width: 30, height: 32 },
+    roundClear: { x: 0, y: 0, width: 400, height: 60, frame: 1 },
+    gameOver: { x: 0, y: 60, width: 320, height: 60, frame: 1 },
+    pause: { x: 0, y: 120, width: 200, height: 60, frame: 1 },
+    result: { x: 200, y: 120, width: 240, height: 60, frame: 1 },
+    menu: { x: 450, y: 0, width: 120, height: 128, frame: 1 },
+    selected: { x: 450, y: 128, width: 120, height: 32, frame: 1 },
+    unchecked: { x: 420, y: 0, width: 30, height: 32, frame: 1 },
+    checked: { x: 420, y: 32, width: 30, height: 32, frame: 1 },
+    arrow: { x: 420, y: 64, width: 30, height: 32 , frame: 1},
 
     //
     player: new ImageDataObject(0, 200, 40, 20),
     playerDamageEffect: new ImageDataObject(0, 200, 40, 20, 3),
     playerDieEffect: new ImageDataObject(0, 221, 20, 20, 10),
     playerLevelupEffect: new ImageDataObject(200, 200, 70, 15, 4),
+
+    /** 필드 결과값 보여주기 용도 */ fieldResultData: new ImageDataObject(0, 250, 420, 200),
+    /** 필드 일시정지 시 보여주기 용도 */ fieldPauseData: new ImageDataObject(0, 450, 420, 150),
   }
 
   static mainSystem = {
@@ -819,11 +825,17 @@ export class imageDataInfo {
     inventoryUpgrade: new ImageDataObject(300, 150, 100, 60),
     inventoryEquip: new ImageDataObject(0, 210, 100, 60),
     inventoryDelete: new ImageDataObject(100, 210, 100, 60),
-    inventoryUserEquipIcon: new ImageDataObject(300, 90, 60, 60),
+    inventoryUserEquipIcon: new ImageDataObject(320, 90, 60, 60),
     inventoryHelp: new ImageDataObject(200, 210, 100, 60),
     statBack: new ImageDataObject(0, 270, 100, 40),
     statEquipmentUpgrade: new ImageDataObject(100, 270, 100, 40),
     statHelp: new ImageDataObject(200, 270, 100, 40),
+
+    /** 무기 또는 스킬이 잠금되어있는경우 */ weaponSkillLock: new ImageDataObject(350, 60, 40, 20),
+    /** 라운드 레벨, 공격력 조건이 맞지 않음 */ roundConditionLevelAttackReject: new ImageDataObject(80, 90, 60, 60),
+    /** 라운드 요구 조건의 일부가 맞지 않음 (클리어 등등...) */ roundConditionLock: new ImageDataObject(140, 90, 60, 60),
+    /** 라운드를 플레이 하고 클리어한경우 */ roundPlayAfterClear: new ImageDataObject(200, 90, 60, 60),
+    /** 라운드가 아직 표시되지 않은 상태 */ roundDisplayQuestionMark: new ImageDataObject(260, 90, 60, 60),
   }
 
   static enemyDieEffectList = {
@@ -964,7 +976,15 @@ export class imageDataInfo {
     rapid: {x: 320, y: 40, width: 60, height: 18, frame: 1},
     ring: {x: 640, y: 0, width: 50, height: 50, frame: 1},
     boomerang: {x: 580, y: 0, width:60, height: 50, frame: 1},
-    seondanil: {x: 690, y: 0, width: 90, height: 40, frame: 1}
+    seondanil: {x: 690, y: 0, width: 90, height: 40, frame: 1},
+    kalnal: new ImageDataObject(0, 101, 80, 20),
+    cogwheel: new ImageDataObject(81, 101, 100, 100),
+    yeonsai: new ImageDataObject(0, 122, 60, 10),
+    sabangtan: new ImageDataObject(0, 133, 50, 56),
+    r3TowerPink: new ImageDataObject(0, 210, 80, 80, 10),
+    r3TowerPurple: new ImageDataObject(690, 40, 8, 40, 10),
+    r3TowerHelljeonNormal: new ImageDataObject(500, 50, 70, 10),
+    r3TowerHelljeonChase: new ImageDataObject(500, 61, 70, 10),
   }
 
   static weaponEffect = {
@@ -986,29 +1006,56 @@ export class imageDataInfo {
     skillSantansuUp: new ImageDataObject(2110, 300, 40, 40, 9),
     skillSantansuDown: new ImageDataObject(2110, 340, 40, 40, 9),
     skillSantansuWater: new ImageDataObject(2110, 380, 40, 40, 9),
+    sabangtan: new ImageDataObject(0, 950, 100, 100, 10),
+    kalnal: new ImageDataObject(610, 630, 40, 40, 10),
+    iceChaser: new ImageDataObject(0, 1060, 100, 400, 11),
+    speaker: new ImageDataObject(1100, 840, 80, 100, 6),
+    r2Firecraker: new ImageDataObject(1000, 950, 100, 100, 10),
+    r3Xkill: new ImageDataObject(0, 1500, 90, 90, 18),
+    r3Xshot: new ImageDataObject(0, 1600, 90, 90, 14),
+    r3Xbeam: new ImageDataObject(0, 1700, 90, 90, 10),
+    r3Xboom: new ImageDataObject(0, 1800, 90, 90, 10),
   }
 
   static skill = {
     blaster: {x: 0, y: 0, width: 36, height: 36, frame: 1},
     multyshot: {x: 40, y: 0, width: 60, height: 12, frame: 1},
-    sidewave: {x: 100, y: 0, width: 36, height: 120, frame: 5},
+    sidewave: {x: 101, y: 0, width: 36, height: 120, frame: 5},
     sapiaRect: {x: 300, y: 0, width: 100, height: 100, frame: 5},
     sapiaCircle: {x: 300, y: 100, width: 100, height: 100, frame: 5},
-    sword: {x: 0, y: 140, width: 80, height: 20, frame: 1},
+    sword: {x: 0, y: 150, width: 80, height: 20, frame: 1},
+    swordMove: {x: 0, y: 240, width: 80, height: 40, frame: 7},
     hyperBall: {x: 0, y: 40, width: 100, height: 100, frame: 1},
-    laser: {x: 0, y: 200, width: 800, height: 100, frame: 1},
-    swordMove: {x: 0, y: 300, width: 80, height: 40, frame: 7},
-    missile: {x: 0, y: 350, width: 60, height: 30, frame: 8},
-    criticalChase: {x: 0, y: 380, width: 60, height: 40, frame: 8},
-    arrow: {x: 0, y: 420, width: 70, height: 70, frame: 7},
-    santansu: {x: 100, y: 120, width: 30, height: 80, frame: 1},
-    boomerang: {x: 130, y: 120, width: 80, height: 80, frame: 1},
-    ring: {x: 500, y: 350, width: 100, height: 100, frame: 1},
-    moon: {x: 600, y: 300, width: 200, height: 200, frame: 1},
-    seondanil: {x: 600, y: 500, width: 180, height: 100, frame: 1},
-    rapid: {x: 0, y: 490, width: 100, height: 30, frame: 6},
-    hanjumoek: {x: 0, y: 520, width: 75, height: 40, frame: 8},
-    whiteflash: {x: 0, y: 560, width: 60, height: 60, frame: 6}
+    laser: {x: 810, y: 0, width: 800, height: 100, frame: 1},
+    missile: {x: 0, y: 300, width: 60, height: 30, frame: 8},
+    criticalChaser: {x: 0, y: 331, width: 60, height: 40, frame: 8},
+    arrow: {x: 0, y: 372, width: 70, height: 70, frame: 7},
+    santansu: {x: 90, y: 150, width: 30, height: 80, frame: 1},
+    boomerang: {x: 121, y: 150, width: 80, height: 80, frame: 1},
+    ring: {x: 1001, y: 110, width: 100, height: 100, frame: 1},
+    moon: {x: 1101, y: 110, width: 200, height: 200, frame: 1},
+    seondanil: {x: 810, y: 110, width: 180, height: 100, frame: 1},
+    rapid: {x: 0, y: 443, width: 100, height: 30, frame: 6},
+    hanjumoek: {x: 0, y: 474, width: 75, height: 40, frame: 8},
+    whiteflash: {x: 0, y: 515, width: 60, height: 60, frame: 6},
+    kalnal: new ImageDataObject(600, 240, 200, 40, 1),
+    cogwheel: new ImageDataObject(1303, 110, 400, 400, 1),
+    yeonsai: new ImageDataObject(600, 281, 100, 40, 1),
+    sabangtan: new ImageDataObject(810, 240, 160, 110, 1),
+    habirant: new ImageDataObject(600, 321, 40, 40, 1),
+    iceChaser: new ImageDataObject(600, 363, 40, 60, 8),
+    calibur: new ImageDataObject(1061, 376, 210, 40, 1),
+    sujikpa: new ImageDataObject(1001, 240, 100, 100, 1),
+    speaker: new ImageDataObject(0, 580, 200, 180, 6),
+    eomukggochiStick: new ImageDataObject(930, 368, 300, 6, 1),
+    eomukggochi1: new ImageDataObject(930, 375, 40, 40, 1),
+    eomukggochi2: new ImageDataObject(970, 375, 40, 40, 1),
+    eomukggochi3: new ImageDataObject(1010, 375, 50, 40, 1),
+    r2Firecracker: new ImageDataObject(601, 430, 50, 80, 8),
+    r2Toyhammer: new ImageDataObject(202, 150, 60, 60, 1),
+    r3Helljeon: new ImageDataObject(1102, 320, 140, 20, 1),
+    r3Xseries: new ImageDataObject(500, 300, 90, 90, 1),
+    r3Xboom: new ImageDataObject(1010, 420, 90, 90, 1),
   }
 
   static menuList = {

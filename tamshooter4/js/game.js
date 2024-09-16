@@ -1,7 +1,7 @@
 //@ts-check
 
 import { ID } from "./dataId.js"
-import { StatItem, dataExportStatItem } from "./dataStat.js"
+import { StatItem, StatUser, dataExportStatItem } from "./dataStat.js"
 import { ImageDataObject, imageDataInfo, imageSrc } from "./imageSrc.js"
 import { soundSrc } from "./soundSrc.js"
 import { TamsaEngine } from "./tamsaEngine/tamsaEngine.js"
@@ -125,9 +125,6 @@ for (let key in soundSrc.music) {
 for (let key in soundSrc.skill) {
   game.sound.createAudio(soundSrc.skill[key])
 }
-for (let key in soundSrc.enemyDie) {
-  game.sound.createAudio(soundSrc.enemyDie[key])
-}
 
 
 class InventoryItem {
@@ -211,8 +208,10 @@ class userInventorySystem {
       isDeleted = true
     } else if (target.itemType === this.itemType.ITEM) {
       // 아이템의 개수가 삭제 개수보다 많으면 그 개수만큼 삭제, 적으면 전부 삭제
+      if (target.count > deleteCount) target.count -= deleteCount
+
       // 삭제 개수가 0이하이면 전부 삭제
-      target.count > deleteCount || deleteCount <= 0 ? target.count -= deleteCount : isDeleted = true
+      if (deleteCount <= 0) isDeleted = true
     }
 
     // 아이템 삭제 작업
@@ -270,23 +269,104 @@ class userInventorySystem {
   static get (index) {
     return this.itemList[index]
   }
+
+  static getSaveData () {
+    let idList = []
+    let countList = []
+    let upgradeLevel = []
+
+    for (let i = 0; i < this.itemList.length; i++) {
+      let current = this.itemList[i]
+      idList.push(current.id)
+      countList.push(current.count)
+      upgradeLevel.push(current.upgradeLevel)
+    }
+
+    return {
+      idList,
+      countList,
+      upgradeLevel
+    }
+  }
 }
+
+/** 
+ * 장비 데이터
+ * @typedef UserEquipment
+ * @property {number} itemIndex
+ * @property {number} attack
+ * @property {number} baseCost
+ * @property {number} upgradeCost
+ * @property {number} id
+ * @property {number} upgradeLevel
+ */
+
+/**
+ * 유저 세이브 데이터 타입
+ * @typedef UserSaveData
+ * @property {number} lv
+ * @property {number} exp
+ * @property {number} gold
+ * @property {number[]} weaponList
+ * @property {number[]} skillList
+ * @property {number[]} weaponPreset
+ * @property {number[]} skillPreset
+ * @property {number} weaponPresetNumber
+ * @property {number} skillPresetNumber
+ * @property {number[]} inventoryItemIdList
+ * @property {number[]} inventoryItemCountList
+ * @property {number[]} inventoryItemUpgardeLevel
+ * @property {UserEquipment} equipment
+ * @property {number[]} weaponUnlockList
+ * @property {number[]} skillUnlockList
+ * @property {number[]} roundClearList
+ * @property {number[]} specialFlagList
+ */
 
 /** 유저 정보 (static 클래스) */
 export class userSystem {
+  /** 최대 레벨 */ static MAX_LEVEL = StatUser.MAX_LEVEL
+  /** 아이템의 강화 최대 레벨 */ static UPGRADE_LEVEL_MAX = StatItem.UPGRADE_LEVEL_MAX
+  /** 유저 체력 기본값 */ static HP_DEFAULT = 300
+  /** 유저 쉴드 기본값 */ static SHIELD_DEFAULT = 200
+  /** 쉴드 회복 기본값 */ static SHIELD_RECOVERY_DEFAULT = 100
+  /** 쉴드 회복의 기준값, 매 프레임마다 쉴드 회복량이 증가하고, 쉴드 회복값이 이 기준값을 넘어가면 쉴드 1회복
+   * 예를들어, 쉴드 회복이 6000까지 오르면, 유저의 쉴드가 1 회복됩니다. 쉴드 회복은 매 프레임마다 추가됩니다.
+   * 
+   * 그래서, 프레임당 기본값은 100/6000 회복입니다. (주의: 소수점 계산이 아닌 정수계산입니다.) */ 
+  static SHIELD_RECOVERY_USING = 6000
+
   /** 레벨, 직접적인 변경 금지 */ static lv = 1
   /** 경험치: 경험치 값은 addExp, setExp등을 통해 수정해주세요. */ static exp = 0
-  /** 쉴드 */ static shield = 200
-  /** 쉴드 최대치 */ static shieldMax = 200
-  /** 쉴드 회복량 (매 프레임마다), 참고: 이 값을 60번 적용해야 실제 쉴드가 1 회복됩니다. */ static shieldRecovery = 100
-  /** 쉴드 회복의 기준값 (이 수치가 전부 채워져야 1 회복) */ static SHIELD_RECOVERY_BASE_VALUE = 6000
-  /** 체력 (100% 값처럼 취급됨.) */ static hp = 300
-  /** 체력 최대치 */ static hpMax = 300
+  /** 쉴드 */ static shield = this.SHIELD_DEFAULT
+  /** 쉴드 최대치 */ static shieldMax = this.SHIELD_DEFAULT
+  /** 쉴드 회복량 (매 프레임마다), 참고: 이 값을 60번 적용해야 실제 쉴드가 1 회복됩니다. */ static shieldRecovery = this.SHIELD_RECOVERY_DEFAULT
+  /** 체력 (100% 값처럼 취급됨.) */ static hp = this.HP_DEFAULT
+  /** 체력 최대치 */ static hpMax = this.HP_DEFAULT
   /** 데미지 경고 프레임 */ static damageWarningFrame = 0
   /** 레벨업 이펙트 프레임 */ static levelUpEffectFrame = 0
   /** 골드 (플레이어의 자원) */ static gold = 0
 
-  /** 아이템의 강화 최대 레벨 */ static UPGRADE_LEVEL_MAX = StatItem.UPGRADE_LEVEL_MAX
+  /** 스페셜 플래그 (특수한 용도로 사용됨) */ static specialFlagList = [0]
+
+
+  /** 라운드 클리어 id 리스트 @type {number[]} */
+  static roundClearList = []
+
+  /** 해당 라운드가 클리어되어있는지 살펴봅니다. */
+  static getRoundClear (roundId = 0) {
+    return this.roundClearList.includes(roundId)
+  }
+
+  /** 클리어한 라운드의 id 추가 (중복으로 처리되지 않음) */
+  static addRoundClear (roundId = 0) {
+    if (!this.roundClearList.includes(roundId)) {
+      this.roundClearList.push(roundId)
+
+      // 라운드 id를 오름차순 정렬
+      this.roundClearList.sort((a, b) => a - b)
+    }
+  }
   
   /** 스킬 리스트(기본값) (총 8개, 이중 0 ~ 3번은 A슬롯, 4 ~ 7번은 B슬롯) */ 
   static skillList = [
@@ -317,6 +397,25 @@ export class userSystem {
     ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused, ID.playerSkill.unused, // preset 5B
   ]
 
+  /** 스킬의 언락된 리스트 @type {number[]} */
+  static skillUnlockList = []
+
+  /** 해당 스킬이 언락되어있는지를 살펴봄 */
+  static getSkillUnlock (skillId = 0) {
+    return this.skillUnlockList.includes(skillId)
+  }
+
+  /** 특정 skill의 unlock 추가 (중복으로 처리되지 않음) */
+  static addSkillUnlock (skillId = 0) {
+    if (!this.skillUnlockList.includes(skillId)) {
+      this.skillUnlockList.push(skillId)
+
+      // 스킬 id를 오름차순 정렬
+      this.skillUnlockList.sort((a, b) => a - b)
+    }
+  }
+
+  /** 유저가 장착한 장비의 데이터 (캐시용도로 사용됨) @type {UserEquipment} */
   static equipment = {
     itemIndex: -1,
 
@@ -367,12 +466,12 @@ export class userSystem {
     if (itemData == null) return false
 
     // 레벨이 낮으면 장착 불가
-    if (this.lv < itemData.equipmentRequireLevel) return false
+    if (this.lv < itemData.equipment.requireLevel) return false
 
     // 장비 교체 (이전 장비는 인벤토리에 남아있음.) 및 데이터 등록
     this.equipment.itemIndex = itemIndex
-    this.equipment.attack = itemData.equipmentAttack
-    this.equipment.upgradeCost = itemData.equipmentUpgradeCost
+    this.equipment.attack = itemData.equipment.attack
+    this.equipment.upgradeCost = itemData.equipment.upgradeCost
     this.equipment.upgradeLevel = currentItem.upgradeLevel
     return true
   }
@@ -404,7 +503,7 @@ export class userSystem {
     if (current.upgradeLevel >= StatItem.UPGRADE_LEVEL_MAX) return false
 
     let upgradeCostPercent = StatItem.upgradeCostPercentTable[current.upgradeLevel]
-    let cost = Math.floor(itemData.equipmentUpgradeCost * upgradeCostPercent / 100)
+    let cost = Math.floor(itemData.equipment.upgradeCost * upgradeCostPercent / 100)
     
     if (this.gold < cost) return false
 
@@ -434,7 +533,7 @@ export class userSystem {
     if (itemData == null) return 0
 
     let upgradeCostPercent = StatItem.upgradeCostPercentTable[current.upgradeLevel]
-    let cost = Math.floor(itemData.equipmentUpgradeCost * upgradeCostPercent / 100)
+    let cost = Math.floor(itemData.equipment.upgradeCost * upgradeCostPercent / 100)
     return cost
   }
 
@@ -445,12 +544,12 @@ export class userSystem {
     let itemData = dataExportStatItem.get(current.id)
     if (itemData == null) return
 
-    let attack = Math.floor(StatItem.upgradeAttackPercentTable[current.upgradeLevel] * itemData.equipmentAttack / 100)
-    let cost = Math.floor(StatItem.upgradeCostPercentTable[current.upgradeLevel] * itemData.equipmentUpgradeCost / 100)
-    let refund = Math.floor(StatItem.upgradeCostTotalRefundTable[current.upgradeLevel] * itemData.equipmentUpgradeCost / 100)
+    let attack = Math.floor(StatItem.upgradeAttackPercentTable[current.upgradeLevel] * itemData.equipment.attack / 100)
+    let cost = Math.floor(StatItem.upgradeCostPercentTable[current.upgradeLevel] * itemData.equipment.upgradeCost / 100)
+    let refund = Math.floor(StatItem.upgradeCostTotalRefundTable[current.upgradeLevel] * itemData.equipment.upgradeCost / 100)
     let nextLevelAttack = 0
     if (current.upgradeLevel < StatItem.UPGRADE_LEVEL_MAX) {
-      nextLevelAttack = Math.floor(StatItem.upgradeAttackPercentTable[current.upgradeLevel + 1] * itemData.equipmentAttack / 100)
+      nextLevelAttack = Math.floor(StatItem.upgradeAttackPercentTable[current.upgradeLevel + 1] * itemData.equipment.attack / 100)
     }
 
     return {
@@ -502,12 +601,27 @@ export class userSystem {
     ID.playerWeapon.multyshot, ID.playerWeapon.unused, ID.playerWeapon.unused, ID.playerWeapon.unused,
     ID.playerWeapon.multyshot, ID.playerWeapon.unused, ID.playerWeapon.unused, ID.playerWeapon.unused,
   ]
-  
-  /** 플레이어가 기본적으로 가지는 공격력 */
-  static BASE_ATTACK = 40000
+
+  /** 무기의 언락된 리스트 @type {number[]} */
+  static weaponUnlockList = []
+
+  /** 해당 무기가 언락되어있는지를 살펴봄 */
+  static getWeaponUnlock (weaponId = 0) {
+    return this.weaponUnlockList.includes(weaponId)
+  }
+
+  /** 특정 weapon의 unlock 추가 (중복으로 처리되지 않음) */
+  static addWeaponUnlock (weaponId = 0) {
+    if (!this.weaponUnlockList.includes(weaponId)) {
+      this.weaponUnlockList.push(weaponId)
+
+      // 무기 id를 오름차순 정렬
+      this.weaponUnlockList.sort((a, b) => a - b)
+    }
+  }
 
   /** 공격력(초당), 참고: 이 값은 processStat함수를 실행하지 않으면 값이 갱신되지 않습니다. */ 
-  static attack = userSystem.BASE_ATTACK
+  static attack = 0
 
   /** 유저 스탯 숨기기 */ static isHideUserStat = false
   /** 숨기기를 사용할 때, 적용되는 알파값, 완전히 숨겨지면 0.2로 취급 */ static hideUserStatAlpha = 1
@@ -515,20 +629,12 @@ export class userSystem {
   /**
    * 경험치 테이블
    */
-  static expTable = [0, // lv 0
-    30000, 33000, 36000, 39000, 42000, 45000, 48000, 51000, 54000, 57000, // lv 1 ~ 10
-    255500, 256000, 256500, 257000, 257500, 258000, 258500, 259000, 259500, 260000, // lv 11 ~ 20
-    333300, 346600, 359900, 373300, 386600, 399900, 413300, 426600, 439900, 450000, // lv 21 ~ 30
-  ]
+  static expTable = StatUser.expTable
 
   /**
    * 공격력 보너스 테이블
    */
-  static attackLevelTable = [0, // lv 0
-    0, 900, 1800, 2700, 3600, 4500, 5600, 6700, 7800, 10000, // lv 1 ~ 10
-    11500, 13000, 14500, 16000, 17500, 20000, 22500, 25000, 27500, 30000, // lv 11 ~ 20
-    31100, 32200, 33300, 34400, 35500, 37000, 37700, 38400, 39100, 40000, // lv 21 ~ 30
-  ]
+  static attackLevelTable = StatUser.attackLevelTable
 
   /** 총 플레이 타임 에 관한 정보 */
   static playTime = {
@@ -660,7 +766,7 @@ export class userSystem {
   ]
 
   /** 유저에게 보여지는 스킬을 설정하는 함수 */
-  static setSkillDisplayStat (slotNumber, coolTime, id) {
+  static setSkillDisplayStat (slotNumber = 0, coolTime = 0, id = 0) {
     this.skillDisplayStat[slotNumber].coolTime = coolTime
     this.skillDisplayStat[slotNumber].id = id
   }
@@ -713,8 +819,18 @@ export class userSystem {
       return true
     }
 
-    // 중복 불가능
-    if (this.skillList.includes(skillId)) return false
+    // 스킬이 중복되어있으면 그 스킬이 같은 슬롯에 있는지를 먼저 조사함
+    // 같은 슬롯에 있다면 교체되지 않고 취소
+    let swapNumber = this.skillList.indexOf(skillId)
+
+    // 변경할 번호와 지정된 슬롯번호가 같다면 취소됨
+    if (swapNumber === skillSlotNumber) {
+      return false
+    } else if (swapNumber !== -1) {
+      // 이 경우는 서로의 위치가 교체됨 (여기서는 위치가 변경될 무기만 저장해둠)
+      let prevId = this.skillList[skillSlotNumber]
+      this.skillList[swapNumber] = prevId
+    }
 
     // 스킬 교체
     this.skillList[skillSlotNumber] = skillId
@@ -789,8 +905,18 @@ export class userSystem {
       }
     }
 
-    // 무기가 중복되어있으면, 설정 무시
-    if (this.weaponList.includes(weaponId)) return false
+    // 무기가 중복되어있으면 그 무기가 같은 슬롯에 있는지를 먼저 조사함
+    // 같은 슬롯에 있다면 교체되지 않고 취소
+    let swapNumber = this.weaponList.indexOf(weaponId)
+
+    // 변경할 번호와 지정된 슬롯번호가 같다면 취소됨
+    if (swapNumber === slotNumber) {
+      return false
+    } else if (swapNumber !== -1) {
+      // 이 경우는 서로의 위치가 교체됨 (여기서는 위치가 변경될 무기만 저장해둠)
+      let prevId = this.weaponList[slotNumber]
+      this.weaponList[swapNumber] = prevId
+    }
 
     this.weaponList[slotNumber] = weaponId
     return true // 무기 변경 성공
@@ -872,7 +998,7 @@ export class userSystem {
    */
   static plusExp (value) {
     this.exp += value
-    const maxLevel = this.expTable.length - 1 // 최대 배열길이 - 1이 최대 레벨
+    const maxLevel = StatUser.MAX_LEVEL
 
     // 레벨업 체크
     if (this.lv < maxLevel) {
@@ -1067,20 +1193,34 @@ export class userSystem {
    * 해당 함수를 사용하지 않으면, 공격력이 변경되어도 해당 공격력이 적용되지 않습니다.
    */
   static processStat () {
-    let value = this.getAttackValue()
+    const attackValue = this.getAttackValue()
 
     // 공격력 결정
-    this.attack = this.BASE_ATTACK + this.attackLevelTable[this.lv] + value.equipment + value.slot + value.stat
+    this.attack = this.attackLevelTable[this.lv] + attackValue.equipment + attackValue.slot + attackValue.stat
 
-    // 체력 결정 (아직 해당 코드는 없음, 추후 추가될 수 있음)
-    // 쉴드 결정 (아직 해당 코드는 없음, 추후 추가될 수 있음)
+    const equipmentData = this.getEquipmentItemInfo()
+
+    if (equipmentData != null) {
+      // 장비가 있다면, 체력 쉴드를 그만큼 추가 (단, 장비에 해당 스탯값이 없으면, 기본값 0으로 처리됨)
+      this.hp = this.HP_DEFAULT + equipmentData.equipment.plusHp
+      this.hpMax = this.HP_DEFAULT + equipmentData.equipment.plusHp
+      this.shield = this.SHIELD_DEFAULT + equipmentData.equipment.plusShield
+      this.shieldMax = this.SHIELD_DEFAULT + equipmentData.equipment.plusShield
+      this.shieldRecovery = this.SHIELD_RECOVERY_DEFAULT + equipmentData.equipment.plusShieldRecovery
+    } else {
+      // 체력과 쉴드에 초기값 부여
+      this.hp = this.HP_DEFAULT
+      this.hpMax = this.HP_DEFAULT
+      this.shield = this.SHIELD_DEFAULT
+      this.shieldMax = this.SHIELD_DEFAULT
+      this.shieldRecovery = this.SHIELD_RECOVERY_DEFAULT
+    }
   }
 
   /** 공격력 조합 값들을 가져옵니다. */
   static getAttackValue () {
     const equipment = this.getInventoryEquipmentStatus(this.equipment.itemIndex)
     return {
-      base: this.BASE_ATTACK,
       level: this.attackLevelTable[this.lv],
       equipment: equipment != null ? equipment.attack : 0,
       slot: 0,
@@ -1089,7 +1229,7 @@ export class userSystem {
   }
 
   /** 플레이어의 스탯을 재측정하고, 해당 플레이어 정보를 리턴합니다. */
-  static getPlayerObjectData () {
+  static getPlayerObjectStat () {
     this.processStat()
     return {
       attack: this.attack,
@@ -1116,41 +1256,33 @@ export class userSystem {
   /**
    * 저장 형식 (버전에 따라 변경될 수 있음.)
    * 
-   * @retruns 세이브데이터의 문자열
+   * @returns {UserSaveData} 세이브데이터의 문자열
    */
   static getSaveData () {
-    let inputData = {
+    return {
       lv: this.lv,
       exp: this.exp,
       gold: this.gold,
-      weapon: this.weaponList,
-      skill: this.skillList,
+      weaponList: this.weaponList,
+      skillList: this.skillList,
       weaponPreset: this.weaponPresetList,
       weaponPresetNumber: this.weaponPresetNumber,
       skillPreset: this.skillPresetList,
       skillPresetNumber: this.skillPresetNumber,
-      inventoryItemList: this.inventory.itemList,
+      inventoryItemIdList: this.inventory.getSaveData().idList,
+      inventoryItemCountList: this.inventory.getSaveData().countList,
+      inventoryItemUpgardeLevel: this.inventory.getSaveData().upgradeLevel,
       equipment: this.equipment,
+      weaponUnlockList: this.weaponUnlockList,
+      skillUnlockList: this.skillUnlockList,
+      roundClearList: this.roundClearList,
+      specialFlagList: this.specialFlagList,
     }
-
-    return inputData
-  }
-
-  static getSaveData0a36 () {
-    let inputData = [
-      this.lv, this.exp,
-      this.weaponList[0], this.weaponList[1], this.weaponList[2], this.weaponList[3],
-      this.skillList[0], this.skillList[1], this.skillList[2], this.skillList[3],
-      this.skillList[4], this.skillList[5], this.skillList[6], this.skillList[7] 
-    ]
-
-    // 배열에 있는 모든 값을 문자열로 연결한다. 참고로 함수를 그대로 쓰면 각 값마다 쉼표가 추가된다.
-    return inputData.join()
   }
 
   /**
    * 현재 버전에 대한 유저 데이터 로드
-   * @param {any} saveData 저장 성공 여부
+   * @param {UserSaveData} saveData 저장 성공 여부
    * @returns {boolean}
    */
   static setLoadData (saveData) {
@@ -1159,12 +1291,34 @@ export class userSystem {
     // 해당 속성이 있을때에만 값을 추가합니다. (없으면 추가 안함)
     if (saveData.lv) this.lv = saveData.lv
     if (saveData.exp) this.exp = saveData.exp
-    if (saveData.weapon) this.weaponList = saveData.weapon
-    if (saveData.skill) this.skillList = saveData.skill
     if (saveData.gold) this.gold = saveData.gold
     if (saveData.equipment) this.equipment = saveData.equipment
 
-    if (saveData.inventoryItemList) this.inventory.itemList = saveData.inventoryItemList
+    // 무기 설정
+    if (saveData.weaponList) {
+      for (let i = 0; i < saveData.weaponList.length; i++) {
+        this.setWeapon(i, saveData.weaponList[i])
+      }
+    }
+
+    // 스킬 설정
+    if (saveData.skillList) {
+      for (let i = 0; i < saveData.skillList.length; i++) {
+        this.setSkill(i, saveData.skillList[i])
+      }
+    }
+
+    // 인벤토리 확인 (3개의 데이터 전부 존재해야함)
+    if (saveData.inventoryItemIdList && saveData.inventoryItemCountList && saveData.inventoryItemUpgardeLevel) {
+      let itemList = saveData.inventoryItemIdList
+      let countList = saveData.inventoryItemCountList
+      let upgardeLevelList = saveData.inventoryItemUpgardeLevel
+
+      // 아이템 추가 (만약 문제가 발생하면, 해당 아이템은 소멸될 수 있음.)
+      for (let i = 0; i < itemList.length; i++) {
+        this.inventory.add(itemList[i], countList[i], upgardeLevelList[i])
+      }
+    }
 
     let weaponPreset = []
     let skillPreset = []
@@ -1208,29 +1362,10 @@ export class userSystem {
       this.skillPresetList = skillPreset
     }
 
+    if (saveData.roundClearList) this.roundClearList = saveData.roundClearList
+    if (saveData.weaponUnlockList) this.weaponUnlockList = saveData.weaponUnlockList
+    if (saveData.skillUnlockList) this.skillUnlockList = saveData.skillUnlockList
+
     return true
-  }
-
-  /**
-   * 0.36 버전에 대한 유저 데이터 로드
-   * @param {string} saveData 
-   */
-  static setLoadData0a36 (saveData) {
-    if (saveData == null) return
-
-    let getData = saveData.split(',')
-    this.lv = Number(getData[0])
-    this.exp = Number(getData[1])
-
-    for (let i = 2, index = 0; i < 6; i++, index++) {
-      this.weaponList[index] = Number(getData[i])
-    }
-
-    for (let i = 6, index = 0; index < 8; i++, index++) {
-      this.skillList[index] = Number(getData[i])
-    }
-
-    // 보여지는 부분 설정을 하기 위해 현재 스킬값을 다시 재설정
-    this.setSkillList(this.getSkillList())
   }
 }

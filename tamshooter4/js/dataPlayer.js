@@ -150,13 +150,13 @@ let graphicSystem = game.graphic
     this.weaponIdList = stat.weaponIdList
 
     const wepaonData = dataExportWeapon.get(stat.weaponIdList[0])
+    if (wepaonData == null) return
+
     /** 
      * 첫번째 무기는 무기의 기본 객체로 지정됩니다.
      * @type {WeaponData} 
      */
     this.weapon = new wepaonData()
-    if (this.weapon == null) return
-
     this.weapon.id = stat.weaponIdList[0] // 무기의 id 입력
     this.weapon.inputStat() // 무기에 해당하는 스탯 입력
   }
@@ -186,17 +186,6 @@ let graphicSystem = game.graphic
     const totalMultiple = this.attackMultiple * multiple
     const resultAttack = (baseAttack * totalMultiple) / (secondPerCount * totalDivied)
     return Math.floor(resultAttack)
-  }
-
-  /**
-   * 무기 데이터를 얻습니다. export된 데이터는 기본적으로 클래스형이기 때문에, 
-   * 인스턴스를 생성시키기 위해서 이런 함수를 사용했습니다.
-   * @param {number} id ID 클래스가 가진 상수 번호 
-   * @returns {WeaponData}
-   */
-  static getWeaponData (id) {
-    let getClass = dataExportWeapon.get(id)
-    return new getClass()
   }
 }
 
@@ -335,11 +324,57 @@ class PlayerBoomerang extends PlayerWeaponData {
   }
 }
 
-class PlayerSubMultyshot extends PlayerWeaponData {
+class PlayerKalnal extends PlayerWeaponData {
   constructor () {
     super()
-    this.setAutoPlayerWeapon(ID.playerWeapon.subMultyshot)
-    this.position = [{x: 0, y: 10}, {x: 0, y: -10}]
+    this.setAutoPlayerWeapon(ID.playerWeapon.kalnal)
+  }
+}
+
+class PlayerCogwheel extends PlayerWeaponData {
+  constructor () {
+    super()
+    this.setAutoPlayerWeapon(ID.playerWeapon.cogwheel)
+  }
+}
+
+class PlayerYeonsai extends PlayerWeaponData {
+  constructor () {
+    super()
+    this.setAutoPlayerWeapon(ID.playerWeapon.yeonsai)
+    this.option = [0, 1, 2, 3, 4, 5]
+    this.position = [{x: -40, y: -20}, {x: -40, y: 0}, {x: -40, y: 20}, {x: -20, y: -20}, {x: -20, y: 0}, {x: -20, y: 20}]
+  }
+}
+
+class PlayerSabangtan extends PlayerWeaponData {
+  constructor () {
+    super()
+    this.setAutoPlayerWeapon(ID.playerWeapon.sabangtan)
+    this.option = [0, 1, 2, 3]
+    this.position = [{x: -10, y: -20}, {x: -10, y: -20}, {x: -10, y: -20}, {x: -10, y: -20}]
+  }
+}
+
+class PlayerR3_towerPink extends PlayerWeaponData {
+  constructor () {
+    super()
+    this.setAutoPlayerWeapon(ID.playerWeapon.r3TowerPink)
+  }
+}
+
+class PlayerR3_towerPurple extends PlayerWeaponData {
+  constructor () {
+    super()
+    this.setAutoPlayerWeapon(ID.playerWeapon.r3TowerPurple)
+  }
+}
+
+class PlayerR3_towerHelljeon extends PlayerWeaponData {
+  constructor () {
+    super()
+    this.setAutoPlayerWeapon(ID.playerWeapon.r3Helljeon)
+    this.option = [1, 0, 0, 1] // 0번 노멀, 1번 유도
   }
 }
 
@@ -353,13 +388,6 @@ export class PlayerSkillData {
      * 이 배율이 높을수록 해당 스킬은 더 높은 데미지를 줄 수 있음.
      */
     this.attackMultiple = 1
-
-    /**
-     * 스킬의 기준 공격력 배율 값 (값 변경 불가능)
-     * 이 게임에서는 shotDamage(1) + subShotDamage(0.2) + skillDamage(0.8 * 4) = Total(4.4)의 구성이 기본입니다.
-     * 대략적인 데미지 비율은, shot(약 23%) + skill(약 76%) 입니다.
-     */
-    this.BASE_MULTIPLE = 0.8
 
     /**
      * 스킬을 사용하고 스킬에 대한 무기 발사를 1회 반복할 때, 동시에 발사되는 개수
@@ -511,7 +539,7 @@ export class PlayerSkillData {
     // resultAttack = (유저 공격력 * 총 배율) / 나누는 값
 
     const totalDivied = this.shotCount * this.repeatCount * this.attackCount
-    const totalMultiple = this.attackMultiple * multiple * this.BASE_MULTIPLE * this.coolTime
+    const totalMultiple = this.attackMultiple * multiple * this.coolTime
     const resultAttack = (baseAttack * totalMultiple) / totalDivied
     return Math.floor(resultAttack)
   }
@@ -539,17 +567,6 @@ export class PlayerSkillData {
    */
   getCoolTimeFrame () {
     return this.coolTime * 60
-  }
-
-  /**
-   * 무기 데이터를 가져옵니다. 
-   * 이것은 export된 스킬 데이터가 클래스형이기 때문에, 인스턴스를 간편하게 만들기 위해 사용하는 함수입니다.
-   * @param {number} id ID 클래스가 가지고 있는 상수
-   * @returns {WeaponData}
-   */
-  static getWeaponData (id) {
-    let getClass = dataExportWeapon.get(id)
-    return new getClass()
   }
 }
 
@@ -723,7 +740,7 @@ class PlayerSkillBoomerang extends PlayerSkillData {
     super()
     this.setAutoPlayerSkill(ID.playerSkill.boomerang)
     this.setSound(soundSrc.skill.skillBoomerang, null)
-    this.option = [{x: 0, y: -240}, {x: 0, y: -60}, {x: 0, y: 180}]
+    this.option = [{x: 0, y: -300}, {x: 0, y: -100}, {x: 0, y: 200}]
   }
 }
 
@@ -735,7 +752,140 @@ class PlayerSkillMoon extends PlayerSkillData {
   }
 }
 
+class PlayerSkillKalnal extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.kalnal)
+    this.setSound('', soundSrc.skill.skillKalnal)
+  }
+}
 
+class PlayerSkillCogwheel extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.cogwheel)
+    this.setSound(soundSrc.skill.skillCogwheel, '')
+    this.position = [{x: 0, y: -200}]
+  }
+}
+
+class PlayerSkillYeonsai extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.yeonsai)
+    this.setSound('', soundSrc.skill.skillYeonsai)
+    this.option = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    this.position = [{x: 20, y: -40}, {x: 20, y: -20}, {x: 20, y: 0}, {x: 20, y: 20}, {x: 20, y: 40}, 
+      {x: -80, y: -40}, {x: -80, y: -20}, {x: -80, y: 0}, {x: -80, y: 20}, {x: -80, y: 40}]
+  }
+}
+
+class PlayerSkillSabangtan extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.sabangtan)
+    this.setSound('', soundSrc.skill.skillSabangtanShot)
+    this.option = [0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3]
+  }
+}
+
+class PlayerSkillHabirant extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.habirant)
+    this.setSound(soundSrc.skill.skillHabirant, '')
+  }
+}
+
+class PlayerSkillIcechaser extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.icechaser)
+    this.setSound('', soundSrc.skill.skillIceChaser)
+  }
+}
+
+class PlayerSkillCalibur extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.calibur)
+    this.setSound(soundSrc.skill.skillCalibur, '')
+  }
+}
+
+class PlayerSkillSujikpa extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.sujikpa)
+    this.setSound('', soundSrc.skill.skillSujikpa)
+  }
+}
+
+class PlayerSkillSpeaker extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.speaker)
+  }
+}
+
+class PlayerSkillEomukggochi extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.eomukggochi)
+    this.position = [{x: 0, y: 15}]
+  }
+}
+
+class PlayerSkillR2Firecracker extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r2Firecracker)
+  }
+}
+
+class PlayerSkillR2Toyhammer extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r2Toyhammer)
+  }
+}
+
+class PlayerSkillR3Xkill extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r3Xkill)
+  }
+}
+
+class PlayerSkillR3Xshot extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r3Xshot)
+  }
+}
+
+class PlayerSkillR3Xbeam extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r3Xbeam)
+  }
+}
+
+class PlayerSkillR3Xboom extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r3Xboom)
+  }
+}
+
+class PlayerSkillR3Helljeon extends PlayerSkillData {
+  constructor () {
+    super()
+    this.setAutoPlayerSkill(ID.playerSkill.r3Helljeon)
+    this.setSound('', soundSrc.skill.skillHelljeonShot)
+    this.position = [{x: 0, y: -20}, {x: 0, y: 20}]
+  }
+}
 
 /**
  * 플레이어 무기 엑스포트 (data.js에서 사용)
@@ -750,12 +900,17 @@ dataExportPlayerWeapon.set(ID.playerWeapon.laser, new PlayerLaser)
 dataExportPlayerWeapon.set(ID.playerWeapon.blaster, new PlayerBlaster)
 dataExportPlayerWeapon.set(ID.playerWeapon.parapo, new PlayerParapo)
 dataExportPlayerWeapon.set(ID.playerWeapon.sidewave, new PlayerSidewave)
-dataExportPlayerWeapon.set(ID.playerWeapon.subMultyshot, new PlayerSubMultyshot)
 dataExportPlayerWeapon.set(ID.playerWeapon.rapid, new PlayerRapid)
 dataExportPlayerWeapon.set(ID.playerWeapon.ring, new PlayerRing)
 dataExportPlayerWeapon.set(ID.playerWeapon.seondanil, new PlayerSeondanil)
 dataExportPlayerWeapon.set(ID.playerWeapon.boomerang, new PlayerBoomerang)
-
+dataExportPlayerWeapon.set(ID.playerWeapon.kalnal, new PlayerKalnal)
+dataExportPlayerWeapon.set(ID.playerWeapon.cogwheel, new PlayerCogwheel)
+dataExportPlayerWeapon.set(ID.playerWeapon.yeonsai, new PlayerYeonsai)
+dataExportPlayerWeapon.set(ID.playerWeapon.sabangtan, new PlayerSabangtan)
+dataExportPlayerWeapon.set(ID.playerWeapon.r3TowerPink, new PlayerR3_towerPink)
+dataExportPlayerWeapon.set(ID.playerWeapon.r3TowerPurple, new PlayerR3_towerPurple)
+dataExportPlayerWeapon.set(ID.playerWeapon.r3Helljeon, new PlayerR3_towerHelljeon)
 
 /**
  * 플레이어 스킬 엑스포트 (data.js에서 사용)
@@ -782,3 +937,20 @@ dataExportPlayerSkill.set(ID.playerSkill.seondanil, new PlayerSkillSeondanil)
 dataExportPlayerSkill.set(ID.playerSkill.hanjumoek, new PlayerSkillHanjumeok)
 dataExportPlayerSkill.set(ID.playerSkill.boomerang, new PlayerSkillBoomerang)
 dataExportPlayerSkill.set(ID.playerSkill.moon, new PlayerSkillMoon)
+dataExportPlayerSkill.set(ID.playerSkill.kalnal, new PlayerSkillKalnal)
+dataExportPlayerSkill.set(ID.playerSkill.cogwheel, new PlayerSkillCogwheel)
+dataExportPlayerSkill.set(ID.playerSkill.yeonsai, new PlayerSkillYeonsai)
+dataExportPlayerSkill.set(ID.playerSkill.sabangtan, new PlayerSkillSabangtan)
+dataExportPlayerSkill.set(ID.playerSkill.habirant, new PlayerSkillHabirant)
+dataExportPlayerSkill.set(ID.playerSkill.icechaser, new PlayerSkillIcechaser)
+dataExportPlayerSkill.set(ID.playerSkill.calibur, new PlayerSkillCalibur)
+dataExportPlayerSkill.set(ID.playerSkill.sujikpa, new PlayerSkillSujikpa)
+dataExportPlayerSkill.set(ID.playerSkill.speaker, new PlayerSkillSpeaker)
+dataExportPlayerSkill.set(ID.playerSkill.eomukggochi, new PlayerSkillEomukggochi)
+dataExportPlayerSkill.set(ID.playerSkill.r2Firecracker, new PlayerSkillR2Firecracker)
+dataExportPlayerSkill.set(ID.playerSkill.r2Toyhammer, new PlayerSkillR2Toyhammer)
+dataExportPlayerSkill.set(ID.playerSkill.r3Xkill, new PlayerSkillR3Xkill)
+dataExportPlayerSkill.set(ID.playerSkill.r3Xshot, new PlayerSkillR3Xshot)
+dataExportPlayerSkill.set(ID.playerSkill.r3Xbeam, new PlayerSkillR3Xbeam)
+dataExportPlayerSkill.set(ID.playerSkill.r3Xboom, new PlayerSkillR3Xboom)
+dataExportPlayerSkill.set(ID.playerSkill.r3Helljeon, new PlayerSkillR3Helljeon)

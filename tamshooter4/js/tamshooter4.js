@@ -1,7 +1,7 @@
 //@ts-check
 
 import { imageSrc, imageDataInfo, ImageDataObject } from "./imageSrc.js";
-import { dataExportStatItem, dataExportStatPlayerSkill, dataExportStatPlayerWeapon, dataExportStatRound, StatItem, StatRound } from "./dataStat.js";
+import { dataExportStatItem, dataExportStatPlayerSkill, dataExportStatPlayerWeapon, dataExportStatRound, StatItem, StatPlayerWeapon, StatRound } from "./dataStat.js";
 import { soundSrc } from "./soundSrc.js";
 import { ID } from "./dataId.js";
 import { gameVar, userSystem } from "./game.js";
@@ -14,34 +14,38 @@ const versionText = 'created by skz1024 | ver 0.50 | 2024/05'
 let digitalDisplay = gameFunction.digitalDisplay
 let loadComplete = false
 
-/** 시스템에서 가장 먼저 로드될 이미지 목록 */
-let systemImageList = []
-for (let target in imageSrc.system) {
-  let src = imageSrc.system[target]
-  systemImageList.push(src)
-}
-systemImageList.push(imageSrc.weapon.weapon) // 무기 이미지
-systemImageList.push(imageSrc.system.roundIcon) // 라운드 아이콘 이미지
+/** 시스템에서 가장 먼저 로드될 이미지 목록 */ let systemImageList = []
+/** 시스템에서 가장 먼저 로드될 사운드 목록 */ let systemSoundList = []
 
-// 이미지 생성 시작
-for (let i = 0; i < systemImageList.length; i++) {
-  game.graphic.createImage(systemImageList[i])
+/** 첫번째로 불러올 함수 사용 */
+let firstLoadFunction = () => {
+  for (let target in imageSrc.system) {
+    let src = imageSrc.system[target]
+    systemImageList.push(src)
+  }
+  systemImageList.push(imageSrc.weapon.weapon) // 무기 이미지
+  systemImageList.push(imageSrc.system.roundIcon) // 라운드 아이콘 이미지
+  
+  // 이미지 생성 시작
+  for (let i = 0; i < systemImageList.length; i++) {
+    game.graphic.createImage(systemImageList[i])
+  }
+  
+  // 사운드 생성 시작
+  for (let target in soundSrc.system) {
+    let src = soundSrc.system[target]
+    systemSoundList.push(src)
+  }
+  for (let target in soundSrc.skill) {
+    let src = soundSrc.skill[target]
+    systemSoundList.push(src)
+  }
+  
+  for (let i = 0; i < systemSoundList.length; i++) {
+    game.sound.createAudio(systemSoundList[i])
+  }
 }
-
-// 사운드 생성 시작
-let systemSoundList = []
-for (let target in soundSrc.system) {
-  let src = soundSrc.system[target]
-  systemSoundList.push(src)
-}
-for (let target in soundSrc.skill) {
-  let src = soundSrc.skill[target]
-  systemSoundList.push(src)
-}
-
-for (let i = 0; i < systemSoundList.length; i++) {
-  game.sound.createAudio(systemSoundList[i])
-}
+firstLoadFunction() // 해당 함수 바로 실행
 
 game.process = () => {
   gameSystem.process()
@@ -63,7 +67,6 @@ game.display = () => {
     }
   }
 }
-
 
 class BoxObject {
   /**
@@ -131,15 +134,12 @@ class BoxObject {
   }
 
   displayText () {
-    // 텍스트
-    if (this.text) {
+    if (this.text) { // 텍스트
       game.graphic.fillText(this.text, this.x + this.borderWidth + 2, this.y + this.borderWidth)
     }
   }
 
-  /**
-   * 박스를 출력하는 함수
-   */
+  /** 박스를 출력하는 함수 */
   display () {
     if (this.hidden) return
 
@@ -474,6 +474,9 @@ class MainSystem extends MenuSystem {
   processSelect () {
     if (!this.selectedCheck()) return
 
+    // 유저 스탯 강제 재조정
+    userSystem.processStat()
+
     switch (this.cursorPosition) {
       case this.MENU_ROUND_SELECT: gameSystem.stateId = gameSystem.STATE_ROUND_SELECT; break
       case this.MENU_WEAPON_SELECT: gameSystem.stateId = gameSystem.STATE_WEAPON_SELECT; break
@@ -484,35 +487,10 @@ class MainSystem extends MenuSystem {
       case this.MENU_ETC: gameSystem.stateId = gameSystem.STATE_ETC; break
       case this.MENU_INVENTORY: gameSystem.stateId = gameSystem.STATE_INVENTORY; break
       case this.MENU_STORY: gameSystem.stateId = gameSystem.STATE_STORY; break
-      case this.MENU_FULLSCREEN: this.requestFullScreen(); break
     }
 
     // 사운드 출력
     game.sound.play(soundSrc.system.systemSelect)
-  }
-
-  /**
-   * 풀스크린을 요청합니다.
-   * [일부 브라우저는 기능을 지원하지 않을 수 있음.]
-   * 
-   * pc에서는 F11을 통해 풀스크린 전환이 가능하므로, 게임 내에선 제거됨
-   * 
-   * @deprecated
-   */
-  requestFullScreen () {
-    if (document.fullscreenElement) {
-      document.exitFullscreen()
-    } else {
-      try {
-        if (game.currentDevice === game.device.PC) {
-          game.graphic.canvas.requestFullscreen()
-        } else {
-          // gameSystem.setStatLineText(1, 'MOBILE NOT USING THIS')
-        }
-      } catch {
-        // gameSystem.setStatLineText(1, 'NOT SUPPORTED FULL SCREEN')
-      }
-    }
   }
 
   process () {
@@ -580,39 +558,20 @@ class OptionSystem extends MenuSystem {
     return this.optionValue
   }
 
-  /** 
-   * 옵션의 값을 설정하거나 해제합니다. (미완성된 함수) 
-   * @deprecated
-   * */
-  setOption (optionIndex = 0) {
+  /** 옵션을 선택했을 때, 해당 인덱스에 맞춰서 설정값을 적용합니다. */
+  setSelectOption (optionIndex = 0) {
     let option = this.optionValue
 
     switch (optionIndex) {
-      case this.MENU_SOUND:
-        option.soundOn = !option.soundOn
-        break
+      case this.MENU_SOUND: option.soundOn = !option.soundOn; break
       case this.MENU_SOUND_VOLUME:
-        // 현재 사운드 볼륨을 가져오고 10을 증가시킵니다.
-        let currentSoundVolume = option.soundVolume
-        currentSoundVolume += 10
-        if (currentSoundVolume > 100) currentSoundVolume = 0
-
-        // 사운드 볼륨 값을 저장한 후, 실제 엔진의 게인을 조정하여 사운드 볼륨을 조정합니다.
-        option.soundVolume = currentSoundVolume
-        game.sound.setGain(currentSoundVolume / 100)
+        option.soundVolume += 10 // 사운드 볼륨 10 증가
+        if (option.soundVolume > 100) option.soundVolume = 0 // 초과하면 0으로 리셋
         break
-      case this.MENU_MUSIC:
-        option.musicOn = !option.musicOn
-        break
+      case this.MENU_MUSIC: option.musicOn = !option.musicOn; break
       case this.MENU_MUSIC_VOLUME:
-        // 현재 음악 볼륨을 가져오고 10을 증가시킵니다.
-        let currentMusicVolume = option.musicVolume
-        currentMusicVolume += 10
-        if (currentMusicVolume > 100) currentMusicVolume = 0
-
-        // 음악 볼륨 값을 저장한 훟, 실제 엔진의 게인을 조정하여 음악 볼륨을 조정합니다.
-        option.musicVolume = currentMusicVolume
-        game.sound.setMusicGain(currentMusicVolume / 100)
+        option.musicVolume += 10
+        if (option.musicVolume > 100) option.musicVolume = 0
         break
       case this.MENU_RESULT_AUTO_SKIP:
         // 이 옵션은 6초 후 자동으로 메인화면으로 이동하게 해주는 기능
@@ -620,12 +579,8 @@ class OptionSystem extends MenuSystem {
         // 이 기능을 끄면 여러분이 직접 ENTER를 눌러야 나갈 수 있습니다.
         option.resultAutoSkip = !option.resultAutoSkip
         break
-      case this.MENU_SHOW_ENEMY_HP:
-        option.showEnemyHp = !option.showEnemyHp
-        break
-      case this.MENU_SHOW_DAMAGE:
-        option.showDamage = !option.showDamage
-        break
+      case this.MENU_SHOW_ENEMY_HP: option.showEnemyHp = !option.showEnemyHp; break
+      case this.MENU_SHOW_DAMAGE: option.showDamage = !option.showDamage; break
     }
 
     this.optionEnable() // 설정된 옵션값을 적용
@@ -639,6 +594,12 @@ class OptionSystem extends MenuSystem {
     fieldSystem.option.showDamage = this.optionValue.showDamage
     fieldSystem.option.musicOn = this.optionValue.musicOn
     fieldSystem.option.soundOn = this.optionValue.soundOn
+
+    // 최대 최소 제한
+    if (this.optionValue.soundVolume < 0) this.optionValue.soundVolume = 0
+    if (this.optionValue.soundVolume > 100) this.optionValue.soundVolume = 100
+    if (this.optionValue.musicVolume < 0) this.optionValue.musicVolume = 0
+    if (this.optionValue.musicVolume > 100) this.optionValue.musicVolume = 100
 
     // 사운드가 켜져있으면, 현재 볼륨값으로 설정하고 아닐경우 0으로 설정
     // 주의: 사운드 게인은 0 ~ 1 사이의 범위입니다.
@@ -671,51 +632,15 @@ class OptionSystem extends MenuSystem {
       this.cursorPosition++
     }
 
-    // if (buttonInputLeft || buttonInputRight) {
-    //   switch (this.cursorPosition) {
-    //     case this.MENU_SOUND_VOLUME:
-    //       game.sound.setOption(this.MENU_SOUND_VOLUME)
-    //       break
-    //     case this.MENU_MUSIC_VOLUME:
-    //       game.sound.setOption(this.MENU_MUSIC_VOLUME)
-    //       break
-    //     case this.MENU_MASTER_VOLUME:
-    //       game.sound.setOption(this.MENU_MASTER_VOLUME)
-    //       break
-    //     case this.MENU_BACK:
-    //       break
-    //     default:
-    //       this.selected = true
-    //       break
-    //   }
-    // }
-
-    // if (buttonInputRight) {
-    //   switch (this.cursorPosition) {
-    //     case this.MENU_SOUND_VOLUME:
-    //       game.sound.setOption(game.sound.TYPE_SOUND_VOLUME, game.sound.getOption().soundVolume + 10)
-    //       break
-    //     case this.MENU_MUSIC_VOLUME:
-    //       game.sound.setOption(game.sound.TYPE_MUSIC_VOLUME, game.sound.getOption().musicVolume + 10)
-    //       break
-    //     case this.MENU_MASTER_VOLUME:
-    //       game.sound.setOption(game.sound.TYPE_MASTER_VOLUME, game.sound.getOption().masterVolume + 10)
-    //       break
-    //     case this.MENU_BACK:
-    //       break
-    //     default:
-    //       this.selected = true
-    //       break
-    //   }
-    // }
-
-    // 사운드 출력
     if (buttonInputLeft || buttonInputRight) {
       switch (this.cursorPosition) {
-        case this.MENU_SOUND_VOLUME:
-          game.sound.play(soundSrc.system.systemCursor)
-          break
+        // 사운드 볼륨: 좌우 화살표키로 +10씩 증가하거나 감소
+        case this.MENU_SOUND_VOLUME: this.optionValue.soundVolume += buttonInputLeft ? -10 : +10; break
+        case this.MENU_MUSIC_VOLUME: this.optionValue.musicVolume += buttonInputLeft ? -10 : +10; break
       }
+  
+      game.sound.play(soundSrc.system.systemCursor)
+      this.optionEnable()
     }
   }
 
@@ -725,10 +650,10 @@ class OptionSystem extends MenuSystem {
     if (this.cursorPosition === this.MENU_BACK) {
       this.canceled = true
     } else {
-      this.setOption(this.cursorPosition)
+      this.setSelectOption(this.cursorPosition)
     }
 
-    // 사운드 출력
+    // 사운드 볼륨을 선택 버튼으로 조절할 때, 효과음이 재생되도록 처리
     switch (this.cursorPosition) {
       case this.MENU_SOUND_VOLUME:
         game.sound.play(soundSrc.system.systemCursor)
@@ -755,9 +680,6 @@ class OptionSystem extends MenuSystem {
       this.optionValue.showDamage,
     ]
 
-    const imageOptionCheckHeight = 64
-    const imageOptionCheckWidth = 30
-
     for (let i = 0; i < this.menuList.length; i++) {
       this.menuList[i].display()
       let optionImageSrc = imageSrc.system.mainSystem
@@ -769,43 +691,22 @@ class OptionSystem extends MenuSystem {
         game.graphic.fillRect(this.menuList[i].x + this.menuList[i].width, this.menuList[i].y, 100, this.menuList[i].height, 'white')
       }
 
-      if (i >= 1) { // 첫번째 줄부터 옵션 값이 있으므로 여기서부터 옵션 값 출력
-        // 옵션 값 종류에 따라 결과값 표시
-        switch (typeof optionArray[i]) {
-          case 'boolean':
-            if (optionArray[i] === true) {
-              gameFunction.imageObjectDisplay(optionImageSrc, imageOptionCheckedData, this.menuList[i].x + this.menuList[i].width, this.menuList[i].y)
-            } else {
-              gameFunction.imageObjectDisplay(optionImageSrc, imageOptionUnCheckedData, this.menuList[i].x + this.menuList[i].width, this.menuList[i].y)
-            }
-            break
-          case 'number':
-            digitalDisplay(optionArray[i] + '', this.menuList[i].x + this.menuList[i].width, this.menuList[i].y)
-            break
-        }
+      if (i < 1) continue // 0번줄은 밑의 코드를 실행하지 않음
+      // 1번째 줄부터 옵션 값이 있으므로 여기서부터 옵션 값 출력
+      // 옵션 값 종류에 따라 결과값 표시
+      switch (typeof optionArray[i]) {
+        case 'boolean':
+          if (optionArray[i] === true) {
+            gameFunction.imageObjectDisplay(optionImageSrc, imageOptionCheckedData, this.menuList[i].x + this.menuList[i].width, this.menuList[i].y)
+          } else {
+            gameFunction.imageObjectDisplay(optionImageSrc, imageOptionUnCheckedData, this.menuList[i].x + this.menuList[i].width, this.menuList[i].y)
+          }
+          break
+        case 'number':
+          digitalDisplay(optionArray[i] + '', this.menuList[i].x + this.menuList[i].width, this.menuList[i].y)
+          break
       }
-
     }
-  }
-
-  /**
-   * 사용불가능
-   * @deprecated
-   */
-  getOptionObject () {
-    return {
-      sound: this.optionValue[this.MENU_SOUND],
-      music: this.optionValue[this.MENU_MUSIC],
-      resultAutoSkip: this.optionValue[this.MENU_RESULT_AUTO_SKIP],
-      showEnemyHp: this.optionValue[this.MENU_SHOW_DAMAGE],
-      showDamage: this.optionValue[this.MENU_SHOW_DAMAGE]
-    }
-  }
-
-  /** 사용불가능 @deprecated */
-  setOptionMusicSound (music, sound) {
-    // this.optionValue[this.MENU_MUSIC] = music
-    // this.optionValue[this.MENU_SOUND] = sound
   }
 }
 
@@ -828,7 +729,6 @@ class RoundSelectSystem extends MenuSystem {
   /** 최대 라운드: 8 */ MAX_ROUND = 8
   roundIconSrc = imageSrc.system.roundIcon
   roundIconSize = { width: 59, height: 59 }
-
 
   constructor () {
     super()
@@ -1016,18 +916,105 @@ class RoundSelectSystem extends MenuSystem {
       if (this.cursorRound === 0) {
         this.canceled = true // 취소버튼을 누른것으로 처리
       } else {
-        this.cursorMode = this.CURSORMODE_SUB
-        game.sound.play(soundSrc.system.systemSelect)
+        if (userSystem.lv < this.roundWorld.requireLevelMinList[this.cursorPosition]) {
+          game.sound.play(soundSrc.system.systemBuzzer)
+        } else {
+          this.cursorMode = this.CURSORMODE_SUB
+          game.sound.play(soundSrc.system.systemSelect)
+        }
       }
     } else if (this.cursorMode === this.CURSORMODE_SUB) {
       let roundId = this.getRoundId()
-      fieldSystem.roundStart(roundId)
+      if (this.roundConditionCheck(roundId)) {
+        // 정상적인 라운드 입장
+        fieldSystem.roundStart(roundId)
 
-      if (fieldSystem.message === fieldSystem.messageList.STATE_FIELD) {
-        game.sound.play(soundSrc.system.systemEnter)
-        gameSystem.stateId = gameSystem.STATE_FIELD
+        if (fieldSystem.message === fieldSystem.messageList.STATE_FIELD) {
+          game.sound.play(soundSrc.system.systemEnter)
+          gameSystem.stateId = gameSystem.STATE_FIELD
+        }
+      } else {
+        game.sound.play(soundSrc.system.systemBuzzer)
       }
     }
+  }
+
+  roundConditionCheck (roundId = 0) {
+    let data = dataExportStatRound.get(roundId)
+    if (data == null) return true
+
+    // 레벨, 공격력이 부족할경우 라운드 입장 불가능
+    let conditionA = this.roundConditionCheckRequire(roundId)
+
+    // 이전 라운드 클리어가 필요한 라운드에서는, 이전 라운드를 클리어해야함
+    let conditionB = this.roundConditionCheckPrevRound(roundId)
+
+    // 두개의 조건이 맞아야만 true이고 아니라면 false
+    return conditionA && conditionB
+  }
+
+  roundConditionCheckRequire (roundId = 0) {
+    let data = dataExportStatRound.get(roundId)
+    if (data == null) return true
+
+    // 레벨, 공격력이 부족할경우 라운드 입장 불가능
+    if (userSystem.lv < data.requireLevel || userSystem.attack < data.minAttack) return false
+
+    return true
+  }
+
+  roundConditionCheckPrevRound (roundId = 0) {
+    let data = dataExportStatRound.get(roundId)
+    if (data == null) return true
+
+    // 이전 라운드 클리어가 필요한 라운드에서는, 이전 라운드를 클리어해야함
+    if (data.prevRoundId !== 0 && !userSystem.getRoundClear(data.prevRoundId)) return false
+
+    return true
+  }
+
+  roundConditionCheckPrevRoundText (roundId = 0) {
+    let data = dataExportStatRound.get(roundId)
+    if (data == null) return ''
+
+    let prevData = dataExportStatRound.get(data.prevRoundId)
+    if (prevData == null) return ''
+
+    // 이전 라운드 클리어 텍스트를 가져옴 (ID로 해석할 수는 없으므로)
+    return prevData.roundText
+  }
+
+  /** 라운드 조건에 대해 레벨과 공격력을 각각 확인합니다. */
+  roundConditionLevelAttackCheck (roundId = 0) {
+    let levelCondition = true
+    let attackCondition = true
+    let data = dataExportStatRound.get(roundId)
+    if (data != null) {
+      levelCondition = userSystem.lv < data.requireLevel
+      attackCondition = userSystem.attack < data.minAttack
+    }
+
+    return {
+      levelCondition,
+      attackCondition
+    }
+  }
+
+  roundConditionLevelAttackText (roundId = 0) {
+    let result = this.roundConditionLevelAttackCheck()
+    if (!result.levelCondition && !result.attackCondition) {
+      return ['LOW LEVEL, LOW ATTACK', '레벨 낮음, 공격력 낮음']
+    } else if (!result.levelCondition) {
+      return ['LOW LEVEL', '레벨 낮음']
+    } else if (!result.attackCondition) {
+      return ['LOW ATTACK', '공격력 낮음']
+    } else {
+      return ['', '']
+    }
+  }
+
+  worldLevelMinCheck (worldNumber = 0) {
+    return userSystem.lv < this.roundWorld.requireLevelMinList[worldNumber]
   }
 
   display () {
@@ -1042,7 +1029,6 @@ class RoundSelectSystem extends MenuSystem {
   displayRound () {
     if (this.cursorMode === this.CURSORMODE_SUB) return
 
-    // 10 ~ 19
     for (let i = this.CURSOR_POSITION_START_MAIN; i <= this.CURSOR_POSITION_START_MAIN + 9; i++) {
       if (this.menuList[i] == null) continue
       if (i === 0) continue
@@ -1070,7 +1056,10 @@ class RoundSelectSystem extends MenuSystem {
 
       this.menuList[i].display() // 박스 다시 재출력 (포커스 갱신한 후 출력해야 하기 때문)
 
-      if (position !== -1) {
+      if (this.worldLevelMinCheck(i)) {
+        // 레벨 제한 조건에 맞지 않는 라운드는 ?로 표시됨
+        gameFunction.imageObjectDisplay(imageSrc.system.mainSystem, imageDataInfo.mainSystem.roundDisplayQuestionMark, this.menuList[i].x, this.menuList[i].y)
+      } else if (position !== -1) {
         const imageSize = 60 - 1 // 이미지의 크기
         const imageSection = 60 // 이미지의 공간 (60x60의 공간중 59x59가 이미지 (나머지 공간은 확대/축소할 때 안티에일러싱 방지용))
         const positionX = position % 10
@@ -1107,6 +1096,7 @@ class RoundSelectSystem extends MenuSystem {
     }
   }
 
+  /** @return {number} */
   getRoundId () {
     let idTable = this.getRoundIdTable()
     if (idTable == null) return 0
@@ -1133,7 +1123,7 @@ class RoundSelectSystem extends MenuSystem {
       // 해당 라운드의 id에 따른 데이터를 가져옴
       let stat = dataExportStatRound.get(roundId)
       if (stat == null) continue
-      
+
       let iconNumber = stat.iconNumber
       if (iconNumber !== -1) {
         const imageSize = 60 - 1 // 이미지의 크기
@@ -1153,6 +1143,24 @@ class RoundSelectSystem extends MenuSystem {
           this.menuList[i].height + (rectPlusSize * 2), 
           'blue',
           0.4
+        )
+      }
+
+      // 플레이어의 스탯이 해당 라운드의 조건에 맞지 않는 경우 X자 표시
+      if (!this.roundConditionCheckRequire(roundId)) {
+        gameFunction.imageObjectDisplay(
+          imageSrc.system.mainSystem, 
+          imageDataInfo.mainSystem.roundConditionLevelAttackReject,
+          this.menuList[i].x, this.menuList[i].y
+        )
+      }
+
+      // 이전 라운드 클리어 조건에 맞지 않는 경우, 자물쇠 표시
+      if (!this.roundConditionCheckPrevRound(roundId)) {
+        gameFunction.imageObjectDisplay(
+          imageSrc.system.mainSystem, 
+          imageDataInfo.mainSystem.roundConditionLock,
+          this.menuList[i].x, this.menuList[i].y
         )
       }
 
@@ -1182,9 +1190,14 @@ class RoundSelectSystem extends MenuSystem {
       'ATTACK RANGE: ' + attackRangeText,
     ]
     let textList = [
-      this.roundWorld.TitleList[this.cursorPosition] + '',
-      this.roundWorld.roundWorldInfoText1List[this.cursorPosition] + '',
-      this.roundWorld.roundWorldInfoText2List[this.cursorPosition] + '',
+      this.roundWorld.TitleList[number] + '',
+      this.roundWorld.roundWorldInfoText1List[number] + '',
+      this.roundWorld.roundWorldInfoText2List[number] + '',
+    ]
+    let questionList = [
+      '?',
+      '?',
+      '',
     ]
 
     const XLINE1 = 10
@@ -1196,7 +1209,11 @@ class RoundSelectSystem extends MenuSystem {
     }
 
     for (let i = 0; i < textList.length; i++) {
-      game.graphic.fillText(textList[i], XLINE2, YLINE + (i * YSECTION))
+      if (this.worldLevelMinCheck(number)) {
+        game.graphic.fillText(questionList[i], XLINE2, YLINE + (i * YSECTION))
+      } else {
+        game.graphic.fillText(textList[i], XLINE2, YLINE + (i * YSECTION))
+      }
     }
   }
 
@@ -1238,19 +1255,21 @@ class RoundSelectSystem extends MenuSystem {
     let stat = dataExportStatRound.get(roundId)
     if (stat == null) return
 
-    const layer1X = 120
+    const layer1X = 100
+    const layer2X = 500
     const layer1Y = 10
-    const text1 = 'ROUND|FINISH|REQUIRE'
-    const text2 = '     |TIME  |LEVEL|ATTACK'
+    const text1 = 'ROUND|FINISH|REQUIRE     |MIN   |'
+    const text2 = '     |TIME  |LEVEL|ATTACK|ATTACK|'
     const roundText = stat.roundText.padEnd(5, ' ') + '|'
     const finishTimeText = ('' + stat.finishTime).padEnd(6, ' ') + '|'
     const requireLevelText = ('' + stat.requireLevel).padEnd(5, ' ') + '|'
-    const requireAttackText = ('' + stat.requireAttack).padEnd(6, ' ')
+    const requireAttackText = ('' + stat.requireAttack).padEnd(6, ' ') + '|'
+    const minAttack = ('' + stat.minAttack).padEnd(6, ' ') + '|'
     const tilteText = 'TITLE: ' // 타이틀은 다른 폰트로 표현함 (한글때문에)
     const textList = [
       text1,
       text2,
-      roundText + finishTimeText + requireLevelText + requireAttackText,
+      roundText + finishTimeText + requireLevelText + requireAttackText + minAttack,
       tilteText
     ]
 
@@ -1261,6 +1280,17 @@ class RoundSelectSystem extends MenuSystem {
       if (i === textList.length - 1) {
         game.graphic.fillText(stat.roundName, layer1X + 70, layer1Y + (i * 20))
       }
+    }
+
+    if (!this.roundConditionCheckPrevRound(roundId)) {
+      digitalDisplay('NEED ROUND CLEAR: ' + this.roundConditionCheckPrevRoundText(roundId), layer2X, layer1Y + 0)
+      game.graphic.fillText('라운드 클리어 필요: ' + this.roundConditionCheckPrevRoundText(roundId), layer2X, layer1Y + 20)
+    }
+
+    if (!this.roundConditionCheckRequire(roundId)) {
+      let inputText = this.roundConditionLevelAttackText(roundId)
+      digitalDisplay(inputText[0], layer2X, layer1Y + 40) // 영어 텍스트
+      game.graphic.fillText(inputText[1], layer2X, layer1Y + 60) // 한글 텍스트
     }
   }
 }
@@ -1614,7 +1644,11 @@ class WeaponSelectSystem extends MenuSystem {
   setWeapon (weaponId = 0) {
     if (weaponId == null) return
     if (weaponId === ID.playerWeapon.subMultyshot) return
-    if (this.cursorIcon >= dataExportPlayerWeapon.size) return
+    if (this.cursorIcon >= dataExportPlayerWeapon.size) return // 커서 범위가 플레이어무기 범위를 초과할 수 없음
+    if (!this.weaponUnlockConditionCheck(weaponId)) {
+      game.sound.play(soundSrc.system.systemBuzzer)
+      return // 무기가 해제되어있지 않으면 사용할 수 없음
+    }
 
     // 무기 교체
     let success = userSystem.setWeapon(this.listPosition, weaponId)
@@ -1733,6 +1767,12 @@ class WeaponSelectSystem extends MenuSystem {
     digitalDisplay(infoString, 0, this.outputY4CursorTargetInfo)
     game.graphic.imageDisplay(weaponIconSrc, weaponX * iconWidth, weaponY * iconHeight, iconWidth, iconHeight, 0, outputY3 + 20, iconWidth, iconHeight)
 
+    if (!this.weaponUnlockConditionCheck(weaponId)) {
+      let weaponData = dataExportStatPlayerWeapon.get(weaponId)
+      if (weaponData == null) return
+      let unlockText = StatPlayerWeapon.getUnlockCondition(weaponData.group)
+      game.graphic.fillText(unlockText, 0, outputY3 + 300)
+    }
   }
 
   /** 무기 선택 도움말 */
@@ -1771,9 +1811,29 @@ class WeaponSelectSystem extends MenuSystem {
     }
   }
 
+  /** 해당 무기가 잠금 해제되어있는지 살펴봅니다. @returns {boolean} */
+  weaponUnlockConditionCheck (weaponId = 0) {
+    let data = dataExportStatPlayerWeapon.get(weaponId)
+    if (data == null) return true // 데이터가 없으면 true
+
+    // 데이터가 잠금상태이면, 해당 무기를 언락했는지 확인하고, 아니라면 true리턴(잠금되어있는게 아니므로)
+    return data.lock ? userSystem.getWeaponUnlock(weaponId) : true
+  }
+
+  displayUnlock () {
+    for (let i = this.NUM_START_SKILLICON; i < this.NUM_END_SKILLICON; i++) {
+      let current = this.menuList[i]
+      let weaponId = this.NUM_START_SKILLICON + i + ID.playerWeapon.weaponNumberStart
+      if (!this.weaponUnlockConditionCheck(weaponId)) {
+        gameFunction.imageObjectDisplay(imageSrc.system.mainSystem, imageDataInfo.mainSystem.weaponSkillLock, current.x, current.y, current.width, current.height)
+      }
+    }
+  }
+
   display () {
     super.display()
     this.displayUserWeapon()
+    this.displayUnlock()
     
     // 커서가 가리키는 웨폰 표시
     if (this.state === this.STATE_ICON) this.displayCursorWeapon()
@@ -1801,7 +1861,8 @@ class SkillSelectSystem extends MenuSystem {
     this.outputY1ListLine2Start = 140
     this.outputY2MenuList = 40 + 180
     this.outputY3IconInfoView = 300
-    this.outputY3IconListStart = 280
+    this.outputY3IconListStart = 260
+    this.outputY4 = 540
 
     this.cursorMenu = 0
     this.cursorIcon = 0
@@ -1908,6 +1969,15 @@ class SkillSelectSystem extends MenuSystem {
     if (button.buttonSkill3) this.setSkill(3, this.targetIdList[this.cursorIcon])
   }
 
+  /** 스킬이 잠금 해제되어있는지 살펴봅니다. @returns {boolean} */
+  skillUnlockConditionCheck (skillId = 0) {
+    let skill = dataExportStatPlayerSkill.get(skillId)
+    if (skill == null) return true // 스킬이 없으면 잠금 해제로 간주, 왜냐하면 이 함수는 자물쇠 표시 용도로도 사용되므로
+
+    // 스킬이 잠겨져있으면, unlock되어있는지 확인하고, 잠겨지있지 않으면 무조건 true
+    return skill.lock ? userSystem.getSkillUnlock(skillId) : true
+  }
+
   /**
    * 스킬 설정 함수: 유저에게 스킬을 등록
    * @param {number} slotNumber 0 ~ 7 (Aslot 0 ~ 3, Bslot 4 ~ 7) 스킬 슬롯 번호
@@ -1917,7 +1987,11 @@ class SkillSelectSystem extends MenuSystem {
     // 없는 스킬은 등록 불가능 (unused는 해당 스킬을 제거함)
     let getSkill = dataExportStatPlayerSkill.get(skillId)
     if (getSkill == null) return
-    
+    if (!this.skillUnlockConditionCheck(skillId)) {
+      game.sound.play(soundSrc.system.systemBuzzer)
+      return
+    }
+
     // 스킬을 변경하고 스킬을 변경하는데 성공하면, 사운드 출력 후 다음 리스트로 이동
     let success = userSystem.setSkill(slotNumber, skillId)
     if (success) {
@@ -2034,8 +2108,19 @@ class SkillSelectSystem extends MenuSystem {
     this.displaySkillSelectData()
     this.displaySkillList()
     this.displaySkillHighlight()
+    this.displaySkillUnlock()
 
     if (this.state === this.STATE_HELP) this.displayHelp()
+  }
+
+  displaySkillUnlock () {
+    for (let i = this.NUM_START_SKILLICON; i < this.NUM_END_SKILLICON; i++) {
+      let current = this.menuList[i]
+      let skillId = ID.playerSkill.skillNumberStart + i
+      if (!this.skillUnlockConditionCheck(skillId)) {
+        gameFunction.imageObjectDisplay(imageSrc.system.mainSystem, imageDataInfo.mainSystem.weaponSkillLock, current.x, current.y, current.width, current.height)
+      }
+    }
   }
 
   displaySkillHighlight () {
@@ -2072,9 +2157,16 @@ class SkillSelectSystem extends MenuSystem {
       let position = this.cursorPosition - this.NUM_START_SKILLICON
       let inputString = this.getSkillInfoString(this.targetIdList[position])
       const MARGIN = 3
-      const Y = this.outputY3IconInfoView
+      const Y = this.outputY3IconInfoView - 20
       game.graphic.imageDisplay(imageSrc.system.skillIcon, (position % 10) * 40, Math.floor(position / 10) * 20, 40, 20, 0, Y, 40, 20)
       digitalDisplay(inputString, MARGIN, Y)
+
+      if (!this.skillUnlockConditionCheck(this.targetIdList[position])) {
+        let skillData = dataExportStatPlayerSkill.get(this.targetIdList[position])
+        if (skillData == null) return
+        let unlockText = StatPlayerWeapon.getUnlockCondition(skillData.group)
+        game.graphic.fillText(unlockText, 0, this.outputY4)
+      }
     }
   }
 
@@ -2286,17 +2378,16 @@ class StatUpgradeSystem extends MenuSystem {
 
   displayUserAttack () {
     // 한글이 왜 조금 더 위에 출력되는지 모르겠음. 이건 어쩔 수 없이 강제로 Y좌표를 2 추가함
-    game.graphic.fillText('공격력     = 베이스  + 레벨  + 장비  + 슬롯', 0, this.outputY1Attack + (this.SIZEY * 0) + 2)
+    game.graphic.fillText('공격력     = 레벨  + 장비  + 슬롯', 0, this.outputY1Attack + (this.SIZEY * 0) + 2)
 
-    digitalDisplay('ATTACK  = BASE  + LEVEL + EQUIPMENT + SLOT    ', 0, this.outputY1Attack + (this.SIZEY * 1))
+    digitalDisplay('ATTACK  = LEVEL  + EQUIPMENT + SLOT    ', 0, this.outputY1Attack + (this.SIZEY * 1))
     const userAttack = userSystem.attack
     const userAttackValue = userSystem.getAttackValue()
     const attack = ('' + userAttack).padEnd(8, ' ') + '= '
-    const base = ('' + userAttackValue.base).padEnd(6, ' ') + '+ '
-    const level = ('' + userAttackValue.level).padEnd(6, ' ') + '+ '
+    const level = ('' + userAttackValue.level).padEnd(7, ' ') + '+ '
     const equipment = ('' + userAttackValue.equipment).padEnd(10, ' ') + '+ '
     const slot = ('' + userAttackValue.slot).padEnd(8, ' ')
-    digitalDisplay(attack + base + level + equipment + slot, 0, this.outputY1Attack + (this.SIZEY * 2))
+    digitalDisplay(attack + level + equipment + slot, 0, this.outputY1Attack + (this.SIZEY * 2))
 
     const userWeaponAttack = userSystem.getAttackWeaponValue()
     const userSkillAttack = userSystem.getAttackSkillValue()
@@ -2309,14 +2400,14 @@ class StatUpgradeSystem extends MenuSystem {
   displayUserStat () {
     game.graphic.fillText('체력, 쉴드, 쉴드 회복, 골드', 0, this.outputY2HpShield + (this.SIZEY * 0))
     let hpText = 'HP + SHIELD: ' + userSystem.hp + ' + ' + userSystem.shield
-    let recoveryText = 'SHIELD RECOVERY: ' + userSystem.shieldRecovery + '/' + userSystem.SHIELD_RECOVERY_BASE_VALUE
+    let recoveryText = 'SHIELD RECOVERY: ' + userSystem.shieldRecovery + '/' + userSystem.SHIELD_RECOVERY_USING
     digitalDisplay(hpText, 0, this.outputY2HpShield + (this.SIZEY * 1))
     digitalDisplay(recoveryText, 0, this.outputY2HpShield + (this.SIZEY * 2))
     digitalDisplay('GOLD: ' + userSystem.gold, 0, this.outputY2HpShield + (this.SIZEY * 3))
   }
 
   displayUserLevel () {
-    game.graphic.fillText(`레벨, 경험치, max level(최대 레벨): ${userSystem.expTable.length - 1})`, 0, this.outputY3Level + (this.SIZEY * 0))
+    game.graphic.fillText(`레벨, 경험치, max level(최대 레벨): ${userSystem.MAX_LEVEL})`, 0, this.outputY3Level + (this.SIZEY * 0))
     let percent = userSystem.exp / userSystem.getExpMax() * 100
     digitalDisplay('LV. ' + userSystem.lv + ', EXP: ' + userSystem.exp + '/' + userSystem.getExpMax() + '(' + percent.toFixed(2) + '%)',  0, this.outputY3Level + (this.SIZEY * 1))
   }
@@ -2346,6 +2437,8 @@ class StatUpgradeSystem extends MenuSystem {
 
     game.graphic.fillText('' + equipmentData.name + ' +' + equipment.upgradeLevel, TEXT_X, this.outputY4Equipment + (this.SIZEY * 1))
     digitalDisplay('ATTACK: ' + equipment.attack, TEXT_X, this.outputY4Equipment + (this.SIZEY * 2))
+    if (equipmentData.equipment.plusHp !== 0 || equipmentData.equipment.plusShield) digitalDisplay('HP +' + equipmentData.equipment.plusHp + ', SHIELD +' + equipmentData.equipment.plusShield, TEXT_X, this.outputY4Equipment + (this.SIZEY * 3))
+    if (equipmentData.equipment.plusShieldRecovery !== 0) digitalDisplay('SHIELD RECOVERY +' + equipmentData.equipment.plusShieldRecovery, TEXT_X, this.outputY4Equipment + (this.SIZEY * 4) )
 
     // 업그레이드 레벨 초과시 업그레이드에 관한 정보는 표시되지 않음.
     if (equipment.upgradeLevel >= userSystem.UPGRADE_LEVEL_MAX) return
@@ -2705,13 +2798,15 @@ class InventorySystem extends MenuSystem {
       const border = (iconSectionSize - iconSize) / 2
       const sliceX = iconSectionSize * (itemData.iconNumber % 10)
       const sliceY = iconSectionSize * Math.floor(itemData.iconNumber / 10)
-      const outputX = iconSectionSize * (i % 10) + this.outputX3Icon + border
+      const outputX = iconSectionSize * (i % 10) + this.outputX3Icon + border - 2
       const outputY = iconSectionSize * Math.floor(i / 10) + this.outputY3Icon + border
       game.graphic.imageDisplay(src, sliceX, sliceY, iconSize, iconSize, outputX, outputY, iconSize, iconSize)
 
       if (itemData.type === userSystem.inventory.itemType.ITEM) {
-        const itemCount = inven.count < 999 ? inven.count : 999
-        digitalDisplay('X' + itemCount, outputX, outputY + iconSize - 20)
+        let countText = 'X' + inven.count
+        if (inven.count >= 1000 && inven.count <= 9999) countText = (inven.count / 1000).toFixed(1) + 'K'
+        else if (inven.count >= 10000) countText = '9K+'
+        digitalDisplay(countText, outputX, outputY + iconSize - 20)
       }
     }
   }
@@ -2726,7 +2821,7 @@ class InventorySystem extends MenuSystem {
 
     // info display
     let typeText = data.type === userSystem.inventory.itemType.EQUIPMENT ? 'EQUIPMENT' : 'ITEM'
-    let firstLineText = data.type === userSystem.inventory.itemType.ITEM ? ', count:' + item.count : ', require Level: ' + data.equipmentRequireLevel
+    let firstLineText = data.type === userSystem.inventory.itemType.ITEM ? ', count:' + item.count : ', require Level: ' + data.equipment.requireLevel
 
     digitalDisplay('INDEX: ' + this.getCursorItemIndex() + ', type: ' + typeText + firstLineText, this.outputX3Icon, this.outputY2Info + 0)
     digitalDisplay('NAME: ', this.outputX3Icon, this.outputY2Info + 20)
@@ -3027,7 +3122,7 @@ class StatSystem {
   }
 }
 
-class LoadErrorSystem extends MenuSystem {
+class ErrorSystem extends MenuSystem {
   constructor () {
     super()
     /** 오류 메세지 텍스트 */ this.message = ''
@@ -3196,7 +3291,7 @@ export class gameSystem {
   /** 인벤토리 시스템 */ static inventorySystem = new InventorySystem()
   /** 스토리 시스템 */ static storySystem = new StorySystem()
   /** etc... 시스템 */ static etcSystem = new EtcSystem()
-  /** loadError 시스템 */ static errorSystem = new LoadErrorSystem()
+  /** error 시스템 */ static errorSystem = new ErrorSystem()
 
 
   /** 현재 게임의 옵션 데이터를 가져옵니다. */
@@ -3205,80 +3300,12 @@ export class gameSystem {
   }
 
   /** 
-   * 임시 함수 (현재는 사용할지 잘 모르겠음)
-   * 
-   * 게임 메인 화면에서는 에코를 사용하지 않습니다.
-   * 라운드에서는 에코 효과를 사용할 수 있지만 해제하지 않으므로, 메인 화면에서 해제합니다.
-   * 
-   * @deprecated
-   */
-  static echoCancle () {
-    game.sound.setEchoDisable()
-    game.sound.setMusicEchoDisable()
-  }
-
-  /**
-   * 세이브 데이터의 규칙이 변경됨 (0.43.0) - 하위호환을 위해 이 값들은 유지됩니다. (다만 이후엔 삭제할 가능성이 높음)
-   * 
-   * 저장하거나 불러올 때 localStorage 에서 사용하는 키 이름 (임의로 변경 금지)
-   * 각 키 별로, 저장 데이터 형식과 저장 목적에 대해 자세히 설명되어있습니다.
-   * 대부분의 저장 형식에서 구분자를 ,(쉼표) 로 사용합니다.
-   * 
-   * @deprecated
-   */
-  static saveKey = {
-    /**
-     * 게임에서 저장된 데이터가 있는지 확인
-     * 주의: localStoarge를 통해서 받아오는 값은 string입니다. 그래서 'false'값을 저장해도 Boolean('false')를 해서
-     * 값을 불러와봐야 어차피 true값이 됩니다.(자바스크립트는 문자열에 값이 있으면 true입니다.)
-     */
-    saveFlag: 'saveFlag',
-
-    /**
-     * 플레이 시간
-     * 저장 형식: hour,minute,second,frame 의 문자열 (구분자: ,(쉼표))
-     * 예시: 14,23,7,56 -> 14:23:7 56frame
-     */
-    playTime: 'playTime',
-
-    /**
-     * (게임 첫 시작)시작 날짜 및 시간
-     * 저장 형식: year,month,date,hour,minute,second 의 문자열 (구분자: ,(쉼표))
-     * 예시: 2022,03,11,16,26,33 -> 2022/03/11 16:26:33
-     */
-    startDate: 'startDate',
-
-    /**
-     * 저장 시점의 날짜 및 시간
-     * 저장 형식은 startDate랑 동일
-     * 저장 형식: year,month,date,hour,minute,second 의 문자열 (구분자: ,(쉼표))
-     * 예시: 2022,03,11,16,26,33 -> 2022/03/11 16:26:33
-     */
-    saveDate: 'saveDate',
-
-    /** 모든 옵션 값들을 저장합니다. */
-    optionValue: 'optionValue',
-
-    /** 유저가 가지고 있는 정보 (레벨, 경험치 등...) */
-    userData: 'userData',
-
-    /** 필드 데이터 (필드 상태가 아닐경우 이 데이터는 없음) */
-    fieldData: 'tamshooter4FieldData',
-
-    /** 무기의 리스트 */
-    weaponList: 'weaponList',
-
-    /** 스킬의 리스트 (0 ~ 3번 A슬롯, 4 ~ 7번 B슬롯) */
-    skillList: 'skillList'
-  }
-
-  /** 
    * 이 값 대신 getCurrentSaveKey를 사용해주세요. 왜냐하면 숫자키도 같이 사용해야합니다.
    * 
    * 다만 이 키 값은 내부 상수로 사용되야 하므로 이 코드를 삭제하지 마세요.
    * 
    * tamshooter4에서 사용하는 lcoalStoarge save key 
-   * @deprecated
+   * @private
    */
   static saveKeyTamshooter4Data = 'tamshooter4SaveData'
 
@@ -3288,7 +3315,7 @@ export class gameSystem {
    * 다만 이 키 값은 내부 상수로 사용되야 하므로 이 코드를 삭제하지 마세요.
    * 
    * tamshooter4에서 사용하는 saveKey에 추가적으로 붙는 번호 (다만 이 게임에서 다중 세이브를 사용할 생각이 없음) 
-   * @deprecated
+   * @private
    */
   static saveKeyTamshooter4DataNumber = 0
 
@@ -3305,6 +3332,10 @@ export class gameSystem {
   /** tamshooter4에서 사용하는 백업용 세이브 키 (오류가 났을 때 복구하는 용도) */
   static getCurrentSaveKeyBackup () {
     return this.saveKeyTamshooter4Data + this.saveKeyTamshooter4DataNumber + 'backup'
+  }
+
+  static getCurrentSaveKeyField () {
+    return 'tamshooter4FieldData'
   }
 
   /** 저장 지연 시간을 카운트 하는 변수 */ static saveDelayCount = 0
@@ -3346,11 +3377,24 @@ export class gameSystem {
     // 유저의 데이터
     const userData = this.userSystem.getSaveData()
 
-    // sramData (조작 방지를 위한 추가 정보)
+    // sramDataList (간접 저장 정보)
+    // sram0: lv, exp, gold
+    // sram1: inventoryIdList
+    // sram2: inventoryCount
+    // sram3: inventoryUpgradeLevel
+    // sram4: weaponUnlockList
+    // sram5: skillUnlockList
+    // sram6: roundClearList
+    // sram7: specialFlagList
     let sramData = [
       this.saveNumberEncode(userData.lv, userData.exp, userData.gold),
-      this.saveNumberEncode(userData.inventoryIdList),
-      this.saveNumberEncode(userData.inventoryCountList)
+      this.saveNumberEncode(...userData.inventoryItemIdList),
+      this.saveNumberEncode(...userData.inventoryItemCountList),
+      this.saveNumberEncode(...userData.inventoryItemUpgardeLevel),
+      this.saveNumberEncode(...userData.weaponUnlockList),
+      this.saveNumberEncode(...userData.skillUnlockList),
+      this.saveNumberEncode(...userData.roundClearList),
+      this.saveNumberEncode(...userData.specialFlagList)
     ]
 
     let saveData = {
@@ -3370,10 +3414,10 @@ export class gameSystem {
     // 필드 저장 데이터는, 필드 상태에서, 게임이 진행 중일 때에만 저장됩니다. 클리어, 게임오버, 탈출상태가 되면 저장하지 않습니다.
     if (this.stateId === this.STATE_FIELD && (fieldSystem.stateId === fieldSystem.STATE_NORMAL || fieldSystem.stateId === fieldSystem.STATE_PAUSE) ) {
       const fieldSaveData = fieldSystem.fieldSystemSaveData()
-      localStorage.setItem(this.saveKey.fieldData, JSON.stringify(fieldSaveData))
+      localStorage.setItem(this.getCurrentSaveKeyField(), JSON.stringify(fieldSaveData))
     } else {
       // 필드 상태가 아니면, 필드 저장 데이터는 삭제
-      localStorage.removeItem(this.saveKey.fieldData)
+      localStorage.removeItem(this.getCurrentSaveKeyField())
     }
   }
 
@@ -3401,68 +3445,12 @@ export class gameSystem {
   }
 
   /**
-   * 이 함수는 더이상 사용되지 않습니다. (하위호환을 위한 참고용으로 남겨두었으며 이 함수를 실행하면 오류가 발생될 수 있습니다.)
-   * 
-   * 저장 기능은, 1초에 한번씩 진행됩니다. 달래아 - 지연(프레임)
-   * 이 게임 내에서는, 지연 시간을 딜레이란 단어로 표기합니다.
-   * 
-   * @deprecated
-   * 
-   * @param {boolean} [forceSave=false] 강제 세이브 여부 (딜레이를 무시함) 특정 상황에서만 이 변수의 값을 true로 설정해주세요.
-   */
-  static processSaveOldV0a36 (forceSave = false) {
-    // 데이터 리셋이 되었다면, 게임을 자동 새로고침하므로 저장 함수를 실행하지 않음.
-    if (this.isDataReset) return
-
-    /** 저장 딜레이 시간 */ const SAVE_DELAY = this.SAVE_DELAY
-
-    // 세이브 지연시간보다 세이브 지연 시간을 카운트 한 값이 낮으면 함수는 실행되지 않습니다.
-    // 즉, 60frame을 채울때까지 저장 기능은 미루어집니다. 따라서 1초에 1번씩 저장합니다.
-    this.saveDelayCount++ // 세이브 딜레이에 카운트 증가
-    // 강제세이브의 경우, 저장딜레이를 무시하고 강제로 저장함
-    if (!forceSave && this.saveDelayCount < SAVE_DELAY) return
-
-    // 세이브 딜레이 초기화
-    this.saveDelayCount = 0
-
-    // 한번이라도 저장을 할 경우, saveFlag의 값이 true가 됩니다.
-    localStorage.setItem(this.saveKey.saveFlag, 'true')
-
-    // 저장 시간
-    const saveDate = new Date()
-    const saveDateString = saveDate.getFullYear() + ',' + saveDate.getMonth() + ',' + saveDate.getDay() + ',' + saveDate.getHours() + ',' + saveDate.getMinutes() + ',' + saveDate.getSeconds()
-    localStorage.setItem(this.saveKey.saveDate, saveDateString)
-
-    // 유저의 첫 시작 시간
-    const startDate = this.userSystem.startDate
-    const startDateString = startDate.year + ',' + startDate.month + ',' + startDate.day + ',' + startDate.hour + ',' + startDate.minute + ',' + startDate.second
-    localStorage.setItem(this.saveKey.startDate, startDateString)
-
-    // 플레이 타임 저장
-    const playTime = this.userSystem.playTime
-    const playTimeString = playTime.hour + ',' + playTime.minute + ',' + playTime.second
-    localStorage.setItem(this.saveKey.playTime, playTimeString)
-
-    // 모든 옵션 값들 저장
-    const optionValue = JSON.stringify(this.optionSystem.optionValue)
-    localStorage.setItem(this.saveKey.optionValue, optionValue)
-
-    const userData = this.userSystem.getSaveData0a36()
-    localStorage.setItem(this.saveKey.userData, userData)
-
-    // 필드 저장 데이터는, 필드 상태에서, 게임이 진행 중일 때에만 저장됩니다. 클리어, 게임오버, 탈출상태가 되면 저장하지 않습니다.
-    if (this.stateId === this.STATE_FIELD && (fieldSystem.stateId === fieldSystem.STATE_NORMAL || fieldSystem.stateId === fieldSystem.STATE_PAUSE) ) {
-      const fieldSaveData = fieldSystem.fieldSystemSaveData()
-      localStorage.setItem(this.saveKey.fieldData, JSON.stringify(fieldSaveData))
-    } else {
-      // 필드 상태가 아니면, 필드 저장 데이터는 삭제
-      localStorage.removeItem(this.saveKey.fieldData)
-    }
-  }
-
-  /**
    * 특정 숫자를 임의의 코드로 암호화합니다. (소수점은 암호화 불가능, 강제로 정수로 변환됩니다.)
-   * @param  {...string[] | number[] | string | number} saveNumber 
+   * 
+   * 이 함수는 레스터 매개변수를 통해 데이터를 받으므로, 배열을 자료로 전달할 것이라면, ...Array 형태의 문법을 사용해주세요.
+   * 
+   * 주의: 15자리를 초과하는 숫자를 넣으면, 해당 결과는 정상적으로 보존되지 않고 망가질 수 있음.
+   * @param  {string[] | number[]} saveNumber 
    * @returns {string} JSON문자열
    */
   static saveNumberEncode (...saveNumber) {
@@ -3540,13 +3528,15 @@ export class gameSystem {
     let getKeyTarget = getKeyFirst % 2 === 1 ? getKeyFirst : getKeyLast
 
     /** @type {string} 결과 문자열 */ let result = ''
-    /** @type {number[]} 키값의 암호화 해제한 디코드 배열 */ let decodeArray = []
+    /** @type {string[]} 키값의 암호화 해제한 디코드 배열 */ let decodeArray = []
 
     // 디코드 진행
     for (let i = 0; i < arrayNumber.length; i++) {
       // 첫번째와 마지막 키는 기준 키이므로 이를 디코드 하지 않습니다.
       if (i === 0 || i === arrayNumber.length - 1) continue
-      decodeArray.push(arrayNumber[i] ^ getKeyTarget)
+      let decode = String(arrayNumber[i] ^ getKeyTarget) // 숫자 디코드
+      decode = decode.padStart(8, '0') // 그 다음 8글자 미만인경우 자리수를 채움
+      decodeArray.push(decode)
     }
 
     // 디코드 된 배열을 하나로 합침
@@ -3562,8 +3552,8 @@ export class gameSystem {
       let len = Number(result.slice(position + DIGITLEN, position + DIGITLEN + digit))
       let text = Number(result.slice(position + DIGITLEN + digit, position + DIGITLEN + digit + len))
 
-      // 마지막 글자이면서 디지트가 0인경우 리턴
-      if (position === result.length - 1 && digit === 0) {
+      // 디지트가 0인경우, 0이 아닌숫자가 나올때까지 계속 다음글자로 넘어감
+      if (digit === 0) {
         position++
         continue
       }
@@ -3618,32 +3608,78 @@ export class gameSystem {
     }
 
     if (loadData.userData) {
-      // sram으로 처리
-      let sram1, sram2, sram3
-      let userLvExp
-      if (loadData.sramData) {
-        sram1 = loadData.sramData[0]
-        userLvExp = this.saveNumberDecode(sram1)
+      // 데이터형 받아오기용도
+      let insertUserData = userSystem.getSaveData()
+      for (let currentKey in insertUserData) {
+        if (loadData.userData[currentKey] == null) continue
 
-        sram2 = loadData.sramData[1]
-        sram3 = loadData.sramData[2]
+        insertUserData[currentKey] = loadData.userData[currentKey]
       }
 
-      if (sram1 == null || userLvExp == null) {
+      // sram으로 처리
+      // sramList
+      // sram0: lv, exp, gold
+      // sram1: inventoryList
+      // sram2: inventoryCount
+      // sram3: inventoryUpgradeLevel
+      // sram4: weaponUnlockList
+      // sram5: skillUnlockList
+      // sram6: roundClearList
+      // sram7: specialFlagList
+      let sram0, sram1, sram2, sram3, sram4, sram5, sram6, sram7
+      let userLvExp
+      if (loadData.sramData) {
+        sram0 = loadData.sramData[0]
+        userLvExp = this.saveNumberDecode(sram0)
+        sram1 = loadData.sramData[1]
+        sram2 = loadData.sramData[2]
+        sram3 = loadData.sramData[3]
+        sram4 = loadData.sramData[4]
+        sram5 = loadData.sramData[5]
+        sram6 = loadData.sramData[6]
+        sram7 = loadData.sramData[7]
+      }
+
+      // sram0이 없거나, userLvExp가 없으면 오류 발생
+      if (sram0 == null || userLvExp == null) {
         this.errorSystem.setErrorCatch(null, this.errorSystem.errorTypeList.LOADERROR, systemText.gameError.USER_SRAM_ERROR)
         return false
       } else {
-        loadData.userData.lv = userLvExp[0]
-        loadData.userData.exp = userLvExp[1]
-        loadData.userData.gold = userLvExp[2]
+        insertUserData.lv = userLvExp[0]
+        insertUserData.exp = userLvExp[1]
+        insertUserData.gold = userLvExp[2]
       }
 
-      if (sram2 != null || sram3 != null) {
-        loadData.userData.inventoryId = this.saveNumberDecode(sram2)
-        loadData.userData.inventoryCount = this.saveNumberDecode(sram3)
+      if (sram1 != null || sram2 != null || sram3 != null) {
+        let decode1 = this.saveNumberDecode(sram1)
+        let decode2 = this.saveNumberDecode(sram2)
+        let decode3 = this.saveNumberDecode(sram3)
+        if (decode1) insertUserData.inventoryItemIdList = decode1
+        if (decode2) insertUserData.inventoryItemCountList = decode2
+        if (decode3) insertUserData.inventoryItemUpgardeLevel = decode3
       }
 
-      let isSuccessUserData = this.userSystem.setLoadData(loadData.userData)
+      if (sram4 != null) {
+        let decode4 = this.saveNumberDecode(sram4)
+        if (decode4) insertUserData.weaponUnlockList = decode4
+      }
+
+      if (sram5 != null) {
+        let decode5 = this.saveNumberDecode(sram5)
+        if (decode5) insertUserData.skillUnlockList = decode5
+      }
+
+      if (sram6 != null) {
+        let decode6 = this.saveNumberDecode(sram6)
+        if (decode6) insertUserData.roundClearList = decode6
+      }
+
+      if (sram7 != null) {
+        let decode7 = this.saveNumberDecode(sram7)
+        if (decode7) insertUserData.specialFlagList = decode7
+      }
+
+      let isSuccessUserData = this.userSystem.setLoadData(insertUserData)
       if (!isSuccessUserData) {
         return false
       }
@@ -3664,16 +3700,10 @@ export class gameSystem {
     // 유저의 스킬을 강제로 표시하기 위해 해당 함수를 사용
     userSystem.setSkillDisplayStatDefaultFunction()
 
-    // 불러오기 작업 진행
-    // 0.36.0 ~ 0.42.6 까지의 세이브 파일은 자동으로 0.43.0으로 변환됩니다.
-    // 단, 이미 0.43.0 이후의 데이터가 존재한다면, 0.36.0 ~ 0.42.6 데이터가 있어도 그 데이터는 유지되고 반영되지 않습니다.
+    // 불러오기 작업 진행, 아무것도 없으면 로드 작업 취소
     let tamshooter4LoadData = localStorage.getItem(this.getCurrentSaveKey())
     let tamshooter4BackupData = localStorage.getItem(this.getCurrentSaveKeyBackup())
     if (tamshooter4LoadData == null && tamshooter4BackupData == null) {
-      this.processLoadOldV0a36() // 참고: 이 버전에서조차 불러온 데이터가 없다면 저장된 데이터는 없는것으로 처리합니다.
-      if (localStorage.getItem(this.saveKey.saveFlag) == null) {
-        userSystem.setStartDateReset()
-      }
       return
     }
 
@@ -3685,16 +3715,14 @@ export class gameSystem {
       if (!isBackupSuccess) {
         // 이것도 실패했다면, 오류 발생시키고, 다른 메뉴로 이동시킴 (저장 기능은 사용 불가가됨)
         this.stateId = this.STATE_ERROR
-        // localStorage.removeItem(this.getCurrentSaveKey())
-        // localStorage.removeItem(this.getCurrentSaveKeyBackup())
-        localStorage.removeItem(this.saveKey.fieldData)
+        localStorage.removeItem(this.getCurrentSaveKeyField())
         return
       }
     }
     
     // 모든 데이터를 불러온 후 필드 데이터가 있으면 필드 데이터를 불러옴
     try {
-      const fieldSaveData = localStorage.getItem(this.saveKey.fieldData)
+      const fieldSaveData = localStorage.getItem(this.getCurrentSaveKeyField())
       if (fieldSaveData != null) {
         // 경고: localStoarge 특성상 string값으로 비교해야 합니다.
         // 필드 저장 데이터가 있다면, state를 필드 데이터로 이동
@@ -3705,49 +3733,9 @@ export class gameSystem {
       }
     } catch (e) {
       alert(systemText.gameError.FILED_LOAD_ERROR)
-      localStorage.removeItem(this.saveKey.fieldData)
+      localStorage.removeItem(this.getCurrentSaveKeyField())
       this.stateId = this.STATE_MAIN
       game.setBiosDisplayPossible(true)
-    }
-  }
-
-  /**
-   * 과거 버전을 불러오는 함수 (이 함수는 하위호환을 위해 남겨놓았습니다.)
-   * @deprecated
-   */
-  static processLoadOldV0a36 () {
-    // saveFlag의 값을 불러오고, 만약 아무것도 없다면 이 버전의 데이터를 불러오지 않습니다.
-    const saveFlag = localStorage.getItem(this.saveKey.saveFlag)
-    if (!saveFlag) {
-      // 첫번째로 게임이 실행되었을 때 추가적인 실행 코드 (초기화)
-      userSystem.setSkillDisplayStatDefaultFunction()
-      return
-    }
-    
-    // 플레이 타임 불러오기: 저장 규칙을 모르겠으면, saveKey 객체 내에 있는 변수들의 설명을 참고
-    const playTimeArray = localStorage.getItem(this.saveKey.playTime)
-    if (playTimeArray != null) {
-      const playTime = playTimeArray.split(',')
-      this.userSystem.setPlayTime(playTime[0], playTime[1], playTime[2])
-    }
-    
-    // 시작 날짜 및 시간 불러오기
-    const startDateArray = localStorage.getItem(this.saveKey.startDate)
-    if (startDateArray != null) {
-      const startDate = startDateArray.split(',')
-      this.userSystem.setStartDate(Number(startDate[0]), startDate[1], startDate[2], startDate[3], startDate[4], startDate[5])
-    }
-    
-    // 옵션 값 불러오기
-    const optionValue = localStorage.getItem(this.saveKey.optionValue)
-    if (optionValue != null) {
-      this.optionSystem.optionValue = JSON.parse(optionValue)
-      this.optionSystem.optionEnable() // 불러온 옵션값을 적용
-    }
-    
-    const userData = localStorage.getItem(this.saveKey.userData)
-    if (userData != null) {
-      this.userSystem.setLoadData0a36(userData)
     }
   }
 
@@ -3807,6 +3795,7 @@ export class gameSystem {
     this.processStatLine()
     this.processSave()
     this.processLoad()
+    this.processDebug()
   }
 
   static fieldProcess () {
@@ -3820,10 +3809,10 @@ export class gameSystem {
     const messageList = this.fieldSystem.messageList
     switch (this.fieldSystem.message) {
       case messageList.CHANGE_MUSICON:
-        this.optionSystem.setOption(this.optionSystem.MENU_MUSIC)
+        this.optionSystem.setSelectOption(this.optionSystem.MENU_MUSIC)
         break
       case messageList.CHANGE_SOUNDON:
-        this.optionSystem.setOption(this.optionSystem.MENU_SOUND)
+        this.optionSystem.setSelectOption(this.optionSystem.MENU_SOUND)
         break
       case messageList.STATE_MAIN:
         this.stateId = this.STATE_MAIN
@@ -3842,6 +3831,11 @@ export class gameSystem {
     // 사운드 음악 옵션을 필드에게 전달
     fieldSystem.option.musicOn = this.optionSystem.optionValue.musicOn
     fieldSystem.option.soundOn = this.optionSystem.optionValue.soundOn
+  }
+
+  // 디버그 용도로 사용되는 함수
+  static processDebug () {
+
   }
 
   static processStatLine () {

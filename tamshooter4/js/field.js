@@ -9,7 +9,7 @@ import { ID } from './dataId.js'
 import { PlayerSkillData, PlayerWeaponData } from './dataPlayer.js'
 import { RoundData } from './dataRound.js'
 import { WeaponData } from './dataWeapon.js'
-import { imageDataInfo, imageSrc } from './imageSrc.js'
+import { imageDataInfo, ImageDataObject, imageSrc } from './imageSrc.js'
 import { soundSrc } from './soundSrc.js'
 import { gameVar, userSystem, game, gameFunction } from './game.js'
 import { dataExportStatItem } from './dataStat.js'
@@ -118,16 +118,6 @@ class PlayerObject extends FieldData {
     this.debug = false
     this.dieAfterDelayCount = 0
 
-    /** hp를 100배로 하여 다시 계산하기 위한 특수값, hp 자체는 정수로 처리되므로, 
-     * 데미지 감소에 의한 소수점 단위를 처리하기 위함 */ 
-    this.hpCalcValue = 0
-   
-    /** shield를 100배로 하여 다시 계산하기 위한 특수갑 (hpClacValue랑 같은 개념) */
-    this.shieldCalcValue = 0
-
-    /** hpClacValue, shieldCalcValue의 기준 배율 */
-    this.CALCVALUE_MULTIPLE = 100
-
     /** 플레이어가 해당 라운드를 플레이할 때 사용하는 기준 공격력 (이 값은 내부적인 연산이 포함되어 있으므로, set함수를 사용해서 수정해야함) */
     this.attack = 0
 
@@ -182,7 +172,7 @@ class PlayerObject extends FieldData {
     this.damageEnimationCount = 0
     this.levelupEnimationCount = 0
 
-    const getData = userSystem.getPlayerObjectData()
+    const getData = userSystem.getPlayerObjectStat()
     this.currentLevel = getData.lv
     this.attack = getData.attack
     this.setPlayerAttack(this.attack)
@@ -191,10 +181,6 @@ class PlayerObject extends FieldData {
     this.shield = getData.shield
     this.shieldMax = getData.shieldMax
     this.shieldRecovery = getData.shieldRecovery
-
-    // 쉴드, 체력 설정
-    this.hpCalcValue = this.hpMax * this.CALCVALUE_MULTIPLE
-    this.shieldCalcValue = this.shieldMax * this.CALCVALUE_MULTIPLE
     
     this.initSkill()
     this.initWeapon()
@@ -326,10 +312,10 @@ class PlayerObject extends FieldData {
     // 체력이 같이 감소한경우,
     // 4% 이하, 8% 이하 (8 ~ 16데미지), 8% 초과(17데미지) 으로만 구분됨
 
-    const LOW_DAMAGE = (this.shieldMax * this.CALCVALUE_MULTIPLE) * 0.06
-    const MIDDLE_DAMAGE = (this.shieldMax * this.CALCVALUE_MULTIPLE) * 0.12
-    const HP_LOW_DAMAGE = (this.shieldMax * this.CALCVALUE_MULTIPLE) * 0.04
-    const HP_MIDDLE_DAMAGE = (this.shieldMax * this.CALCVALUE_MULTIPLE) * 0.08
+    const LOW_DAMAGE = Math.floor(this.shieldMax * 0.06)
+    const MIDDLE_DAMAGE = Math.floor(this.shieldMax * 0.12)
+    const HP_LOW_DAMAGE = Math.floor(this.shieldMax * 0.04)
+    const HP_MIDDLE_DAMAGE = Math.floor(this.shieldMax * 0.08)
 
     if (hpDamageCalc >= 1) {
       if (hpDamageCalc <= HP_LOW_DAMAGE) {
@@ -356,7 +342,7 @@ class PlayerObject extends FieldData {
    * @param {number} hpDamage 체력 데미지
    */
   damageEnimationSet (shieldDamage = 0, hpDamage = 0) {
-    let damagePercent = (shieldDamage + hpDamage) / ((this.hpMax + this.shieldMax) * this.CALCVALUE_MULTIPLE) * 100
+    let damagePercent = (shieldDamage + hpDamage) / (this.hpMax + this.shieldMax) * 100
     let damageFrame = Math.floor(damagePercent * 12)
     if (damageFrame > 180) {
       damageFrame = 180
@@ -402,36 +388,32 @@ class PlayerObject extends FieldData {
    * @param {number} damage 
    */
   damageCalcuration (damage) {
-    let damageCalcValue = damage * this.CALCVALUE_MULTIPLE
-    let hpClacDamage = 0
-    let shieldClacDamage = 0
+    let shieldDamage = 0
+    let hpDamage = 0
 
-    if (this.shieldCalcValue > damageCalcValue) {
+    if (this.shield > damage) {
       // 쉴드가 데미지보다 많을 때
-      this.shieldCalcValue -= damageCalcValue
-      shieldClacDamage = damageCalcValue
-    } else if (this.shieldCalcValue < damageCalcValue) {
+      shieldDamage = damage
+      this.shield -= damage
+    } else if (this.shield < damage) {
       // 쉴드가 데미지보다 적을 때
-      if (this.shieldCalcValue > 0) {
+      if (this.shield > 0) {
         // 쉴드가 0 초과인 경우
-        shieldClacDamage = this.shieldCalcValue
-        hpClacDamage = damageCalcValue - shieldClacDamage
-        this.shieldCalcValue = 0
-        this.hpCalcValue -= hpClacDamage
+        shieldDamage = this.shield
+        hpDamage = damage - this.shield
+        this.shield = 0
+        this.hp -= hpDamage
       } else {
         // 쉴드가 0인경우
-        hpClacDamage = damageCalcValue
-        this.hpCalcValue -= damageCalcValue
+        hpDamage = damage
+        this.hp -= hpDamage
       }
     }
 
-    // hpClac가 100미만일때, hp가 1로 표시되도록 처리
-    if (this.hp <= 0 && this.hpCalcValue >= 1) this.hp = 1
-
     // 총 데미지값 리턴
     return {
-      hp: hpClacDamage,
-      shield: shieldClacDamage
+      hp: hpDamage,
+      shield: shieldDamage
     }
   }
 
@@ -450,12 +432,12 @@ class PlayerObject extends FieldData {
   }
 
   /** 플레이어에게 아이템을 추가합니다. (fieldSystem에서 간접적으로 사용함) */
-  addItem (id = 0, count = 0) {
+  _addItem (id = 0, count = 0) {
     userSystem.inventory.add(id, count)
   }
 
   /** 플레이어에게 아이템을 삭제합니다. (fieldSystem에서 간접적으로 사용함)  */
-  removeItem (id = 0, count = 0) {
+  _removeItem (id = 0, count = 0) {
     userSystem.inventoryItemDelete(id, count)
   }
 
@@ -479,8 +461,8 @@ class PlayerObject extends FieldData {
 
   /** 플레이어가 레벨업을 했는지 확인 */
   processLevelupCheck () {
-    if (this.currentLevel != userSystem.getPlayerObjectData().lv) {
-      this.currentLevel = userSystem.getPlayerObjectData().lv
+    if (this.currentLevel !== userSystem.lv) {
+      this.currentLevel = userSystem.lv
       this.levelupEnimationCount = 120
     }
 
@@ -554,26 +536,18 @@ class PlayerObject extends FieldData {
 
   /** hp와 쉴드를 처리함 (쉴드 회복도 여기서 처리) */
   processHpShield () {
-    // hp, shield 재설정
-    this.hp = Math.floor(this.hpCalcValue / 100)
-    this.shield = Math.floor(this.shieldCalcValue / 100)
-
     const SHIELD_RECOVERY_BASE_VALUE = 6000
     this.shieldRecoveryCurrentValue += this.shieldRecovery
 
     // 쉴드 회복 처리
     if (this.shieldRecoveryCurrentValue >= SHIELD_RECOVERY_BASE_VALUE) {
-      this.shieldCalcValue += this.CALCVALUE_MULTIPLE
+      this.shield++
       this.shieldRecoveryCurrentValue -= SHIELD_RECOVERY_BASE_VALUE
     }
 
     // 쉴드 최대치 초과 금지
     if (this.shield > this.shieldMax) {
       this.shield = this.shieldMax
-    }
-
-    if (this.shieldCalcValue > this.shieldMax * this.CALCVALUE_MULTIPLE) {
-      this.shieldCalcValue = this.shieldMax * this.CALCVALUE_MULTIPLE
     }
   }
 
@@ -647,16 +621,16 @@ class PlayerObject extends FieldData {
   }
 
   processMove () {
-    // 이동 가능하거나, autoMoveFrame이 없을 때만 이동 가능합니다.
-    if (!this.isMoveEnable || this.autoMoveFrame > 0) return
-
-    super.processMove()
-
     // 화면 영역에서 벗어나는거 금지
     if (this.x < 0) this.x = 0
     if (this.x > game.graphic.CANVAS_WIDTH - this.width) this.x = game.graphic.CANVAS_WIDTH - this.width
     if (this.y < 0) this.y = 0
     if (this.y > game.graphic.CANVAS_HEIGHT - this.height) this.y = game.graphic.CANVAS_HEIGHT - this.height
+
+    // 이동 가능하거나, autoMoveFrame이 없을 때만 이동 가능합니다.
+    if (!this.isMoveEnable || this.autoMoveFrame > 0) return
+
+    super.processMove()
   }
 
   processButton () {
@@ -781,8 +755,6 @@ class PlayerObject extends FieldData {
       hp: this.hp,
       shield: this.shield,
       shieldMax: this.shieldMax,
-      hpCalcValue: this.hpCalcValue,
-      shieldCalcValue: this.shieldCalcValue,
 
       // 딜레이
       attackDelayCount: this.attackDelayCount,
@@ -922,6 +894,65 @@ class PlayerObject extends FieldData {
     this.autoMoveX = finishX
     this.autoMoveY = finishY
     this.autoMoveFrame = totalFrame
+  }
+}
+
+/** 
+ * 필드에서 아이템이 드랍될 때, 사용되는 이펙트
+ * 
+ * 주의: 아이템은 이펙트와 상관없이 획득합니다. 
+ * (아이템 이펙트가 플레이어에 닿지 않아도 해당 아이템은 획득한것으로 처리됩니다.)
+ */
+export class ItemDropEffect extends CustomEditEffect {
+  constructor () {
+    super()
+    this.iconNumber = 0
+    this.finishX = 0
+    this.finishY = 0
+  }
+
+  /** 해당 아이템의 id를 설정 */
+  setItemId (itemId = 0) {
+    if (itemId === 0) return
+    this.id = itemId
+
+    let data = dataExportStatItem.get(itemId)
+    if (data == null) return
+
+    let iconNumber = data.iconNumber
+    if (iconNumber === -1) return
+
+    let x = iconNumber % 10 
+    let y = Math.floor(iconNumber / 10)
+    let width = imageDataInfo.system.itemIcon.width
+    let height = imageDataInfo.system.itemIcon.height
+    let sectionWidth = imageDataInfo.system.itemIconSection.width
+    let sectionHeight = imageDataInfo.system.itemIconSection.height
+    let imgD = new ImageDataObject(x * sectionWidth, y * sectionHeight, width, height)
+    this.setAutoImageData(imageSrc.system.itemIcon, imgD)
+  }
+
+  processMove () {
+    const MINFRAME = 20 // 20프레임동안 아이템 등장 후 이동 없음
+    const DISPLAYFRAME = 60 // 그리고 60프레임동안 출력됨
+    if (this.elapsedFrame < MINFRAME) return
+
+    // 진행된 시간에 따라 속도 가속
+    let leftFrame = DISPLAYFRAME - this.elapsedFrame
+    if (leftFrame <= 0) leftFrame = 1
+
+    let player = fieldState.getPlayerObject()
+    let speedX = (player.centerX - this.centerX) / leftFrame
+    let speedY = (player.centerY - this.centerY) / leftFrame
+    this.setMoveSpeed(speedX, speedY)
+
+    super.processMove()
+
+    // 아이템은 충돌검사를 하지 않고, 생성된지 40프레임이 지나면 삭제됨
+    if (this.elapsedFrame >= DISPLAYFRAME) {
+      this.isDeleted = true
+      game.sound.play(soundSrc.system.systemItemGet)
+    }
   }
 }
 
@@ -1085,13 +1116,32 @@ export class fieldState {
     if (GetClass == null) return
 
     /** @type {EnemyData} */
-    //@ts-expect-error
-    const inputData = new GetClass(option)
+    const inputData = new GetClass()
     inputData.createId = this.getNextCreateId()
     inputData.id = typeId
     inputData.setPosition(x, y)
     this.enemyObject.push(inputData)
     return inputData
+  }
+
+  /**
+   * 아이템을 가진 적 객체를 생성합니다.
+   * @param {number} typeId 타입의 id
+   * @param {number[]} itemId 아이템의 id
+   * @param {number[]} count 아이템의 개수
+   * @param {number} x x좌표
+   * @param {number} y y좌표
+   */
+  static createEnemyObjectInsertItem (typeId, itemId = [], count = [1], x = 0, y = 0) {
+    const createEnemy = this.createEnemyObject(typeId, x, y) // 적은 이 시점에서 추가됨
+    if (createEnemy == null) return
+
+    // 그리고 그 적의 아이템 추가
+    for (let i = 0; i < itemId.length || i < count.length; i++) {
+      createEnemy.addItem(itemId[i], count[i])
+    }
+
+    return createEnemy
   }
 
   /**
@@ -1118,74 +1168,63 @@ export class fieldState {
 
   /**
    * 이펙트를 생성합니다.
-   * @param {number | CustomEffect | CustomEditEffect} typeId 
-   * CustomEffect 인스턴스(CustomEffect.getObject() 를 사용해주세요.)
    * 
-   * 또는 CustomEditEffect 클래스 또는 생성된 인스턴스
+   * 이펙트에 상세한 요소를 넣고싶다면, 아예 CustomEffect 또는 CustomEditEffect를 상속받아서 구현하세요.
    * 
-   * number는 더이상 사용하지 않습니다.
-   *  
+   * CustomEffect의 경우, 내부적으로 getObject를 통해 새 인스턴스를 생성합니다.
+   * 
+   * @param {CustomEffect | CustomEditEffect} customEffect 
    * @param {number | undefined} x
    * @param {number | undefined} y
-   * @param {any[]} option
-   * @returns {EffectData | null | undefined} 리턴된 이펙트를 이용해서 일시적으로 객체를 조작할 수 있음.
+   * @returns {EffectData | undefined} 리턴된 이펙트를 이용해서 일시적으로 객체를 조작할 수 있음.
    */
-  static createEffectObject (typeId, x = undefined, y = undefined, repeatCount = 0, beforeDelay = 0, ...option) {
-    if (typeof typeId === 'number') {
-      const GetClass = tamshooter4Data.getEffect(typeId)
-      if (GetClass == null) return
-  
+  static createEffectObject (customEffect, x = undefined, y = undefined) {
+    if (customEffect == null) return undefined
+
+    let customEffectObject
+    if (customEffect instanceof CustomEffect) {
+      // 변수 이름 변경... 및 타입Id에 입력된 CustomEffectData에서 새 오브젝트를 얻어옴.
       /** @type {EffectData} */
-      //@ts-expect-error
-      const inputData = new GetClass(option)
-      inputData.createId = this.getNextCreateId()
-      inputData.id = typeId
-      if (x == null) x = 0
-      if (y == null) y = 0
-      inputData.setPosition(x, y)
-      // inputData.setOption(width, height)
-      this.effectObject.push(inputData)
-      return inputData
+      customEffectObject = customEffect.getObject()
+      if (x == null) x = customEffect.x
+      if (y == null) y = customEffect.y
+    } else if (customEffect instanceof CustomEditEffect) {
+      /** @type {EffectData} */
+      customEffectObject = customEffect // 새로 생성된 인스턴스
+      if (x == null) x = customEffect.x
+      if (y == null) y = customEffect.y
     } else {
-      if (typeId == null) return null
-
-      // 만약 생성자(클래스)가 들어왔다면, 해당 클래스의 인스턴스를 생성합니다.
-      // 클래스가 들어올경우 함수 타입으로 들어옵니다. 그래서 타입이 함수인지를 구분합니다.
-      if (typeof typeId === 'function') {
-        //@ts-expect-error
-        typeId = new typeId()
-      }
-
-      let customEffectObject
-      if (typeId instanceof CustomEffect) {
-        // 변수 이름 변경... 및 타입Id에 입력된 CustomEffectData에서 새 오브젝트를 얻어옴.
-        /** @type {EffectData} */
-        customEffectObject = typeId.getObject()
-        if (x == null) x = typeId.x
-        if (y == null) y = typeId.y
-      } else if (typeId instanceof CustomEditEffect) {
-        /** @type {EffectData} */
-        customEffectObject = typeId // 새로 생성된 인스턴스
-        if (x == null) x = typeId.x
-        if (y == null) y = typeId.y
-      } else {
-        customEffectObject = null
-      }
-
-      // 좌표 기본값 설정 (이미 만들어진 객체는 typeId에 있는 객체의 값을 그대로 사용)
-      if (x == null) x = 0
-      if (y == null) y = 0
-
-      // 커스텀 이펙트가 없으면 아무것도 하지 않습니다.
-      if (customEffectObject == null) return null
-      
-      // 커스텀 이펙트의 객체가 들어올경우, 해당 객체를 곧바로 새로운 데이터에 넣습니다.
-      // (구조 상 인스턴스만 변수로 넣을 수 있어서, 클래스 할당 과정을 거치지 않습니다.)
-      customEffectObject.createId = this.getNextCreateId()
-      customEffectObject.setPosition(x, y)
-      this.effectObject.push(customEffectObject)
-      return customEffectObject
+      customEffectObject = undefined
     }
+
+    // 좌표 기본값 설정 (이미 만들어진 객체는 typeId에 있는 객체의 값을 그대로 사용)
+    if (x == null) x = 0
+    if (y == null) y = 0
+
+    // 커스텀 이펙트가 없으면 아무것도 하지 않습니다.
+    if (customEffectObject == null) return undefined
+    
+    // 커스텀 이펙트의 객체가 들어올경우, 해당 객체를 곧바로 새로운 데이터에 넣습니다.
+    // (구조 상 인스턴스만 변수로 넣을 수 있어서, 클래스 할당 과정을 거치지 않습니다.)
+    customEffectObject.createId = this.getNextCreateId()
+    customEffectObject.setPosition(x, y)
+    this.effectObject.push(customEffectObject)
+    return customEffectObject
+  }
+
+  /** 아이템 이펙트를 추가합니다. (라운드에서 아이템을 추가할 때 사용) */
+  static createEffectItem (id = 0) {
+    if (id === 0) return
+
+    // 이펙트 추가
+    let itemEffect = new ItemDropEffect()
+    itemEffect.setItemId(id)
+
+    // 아이템 이펙트가 중앙에서 출력되도록 처리
+    const centerX = game.graphic.CANVAS_WIDTH_HALF - (itemEffect.width / 2)
+    const centerY = game.graphic.CANVAS_HEIGHT_HALF - (itemEffect.height / 2)
+    let inputData = fieldState.createEffectObject(itemEffect, centerX, centerY)
+    return inputData
   }
 
   static damageObjectNumber = 0
@@ -1208,19 +1247,17 @@ export class fieldState {
 
   /**
    * 적 총알을 생성합니다.
-   * @param {EnemyBulletData | FieldData | any} targetClass 
+   * @param {EnemyBulletData} enemyBullet 
    * @param {number | undefined} x x좌표
    * @param {number | undefined} y y좌표
    * @returns 
    */
-  static createEnemyBulletObject (targetClass, x = undefined, y = undefined) {
+  static createEnemyBulletObject (enemyBullet, x = undefined, y = undefined) {
     // 함수(클래스)가 들어온경우, 클래스의 인스턴스를 생성함.
-    if (typeof targetClass === 'function') {
-      targetClass = new targetClass()
-    } else if (targetClass instanceof FieldData || typeof targetClass === 'object') {
+    if (enemyBullet instanceof FieldData || typeof enemyBullet === 'object') {
       // 오브젝트 타입은 변수를 그대로 사용, 그리고 좌표값을 지정하지 않았다면, 자동으로 객체가 가진 좌표값을 사용합니다.
-      if (x == null) x = targetClass.x
-      if (y == null) y = targetClass.y
+      if (x == null) x = enemyBullet.x
+      if (y == null) y = enemyBullet.y
     } else {
       // 그 외 타입은 무시
       return
@@ -1231,7 +1268,7 @@ export class fieldState {
     if (y == null) y = 0
 
     /** @type {EnemyBulletData} */
-    const inputData = targetClass
+    const inputData = enemyBullet
     inputData.createId = this.getNextCreateId()
     inputData.setPosition(x, y)
     this.enemyBulletObject.push(inputData)
@@ -1241,20 +1278,17 @@ export class fieldState {
 
   /**
    * 스프라이트 오브젝트를 생성합니다. (다만, 스프라이트는 FieldData와 동일한)
-   * @param {FieldData | any} targetClass FieldData를 상속받아 만든 클래스
+   * 
+   * 주의: 클래스를 내보낼경우, 오류를 발생시키므로, 반드시 생성된 인스턴스를 사용해야 합니다.
+   * @param {FieldData} targetClass FieldData를 상속받아 만든 클래스
    * @param {number | undefined} x x좌표
    * @param {number | undefined} y y좌표
    */
   static createSpriteObject (targetClass, x = undefined, y = undefined)  {
-    // 함수(클래스)가 들어온경우, 클래스의 인스턴스를 생성함.
-    if (typeof targetClass === 'function') {
-      targetClass = new targetClass()
-      if (x == null) x = 0
-      if (y == null) y = 0
-    } else if (targetClass instanceof FieldData) {
+    if (targetClass instanceof FieldData) {
       // 오브젝트 타입은 변수를 그대로 씀
-      if (x == null) x = targetClass.x
-      if (y == null) y = targetClass.y
+      if (x == undefined) x = targetClass.x
+      if (y == undefined) y = targetClass.y
     } else {
       // 그 외 타입은 무시
       return
@@ -1310,6 +1344,12 @@ export class fieldState {
     for (let i = 0; i < this.enemyObject.length; i++) {
       const currentObject = this.enemyObject[i]
       currentObject.process()
+
+      if (currentObject.isDied) {
+        // 아이템은 죽는 순간 지급되며, 그 즉시 적이 가지고 있는 아이템은 삭제됩니다.
+        // 따라서 중복으로 아이템을 획득할 수 없습니다.
+        this.#processEnemyObjectItemCheck(currentObject)
+      }
     }
     
     // 조건에 따른 적 삭제
@@ -1317,9 +1357,34 @@ export class fieldState {
     for (let i = this.enemyObject.length - 1; i >= 0; i--) {
       const currentObject = this.enemyObject[i]
       if (currentObject.isDeleted) {
-        this.enemyObject.splice(i, 1)
+        this.enemyObject.splice(i, 1) // 적 삭제
       }
     }
+  }
+
+  /** 
+   * 적이 아이템을 가지고 있을 때, 아이템을 플레이어에게 추가
+   * 
+   * 아이템이 추가된 그 즉시, 적이 가지고 있는 아이템은 즉시 삭제되므로
+   * 더이상 아이템이 중복적으로 추가되지 않습니다.
+   * @param {EnemyData} targetEnemy
+  */
+  static #processEnemyObjectItemCheck (targetEnemy) {
+    // 만약 아이템이 있다면 그 아이템을 추가함
+    let item = targetEnemy.getItem()
+    if (item.id.length === 0) return
+
+    if (item.id.length >= 1) {
+      for (let j = 0; j < item.id.length; j++) {
+        fieldSystem.requestAddItem(item.id[j], item.count[j]) // 필드시스템에 아이템 추가
+        let newEffect = new ItemDropEffect() // 이펙트 생성
+        newEffect.setItemId(item.id[j])
+        fieldState.createEffectObject(newEffect, targetEnemy.x, targetEnemy.y) // 이펙트 추가
+      }
+    }
+
+    // 남은 아이템 전부 제거 (드랍이 완료되었으므로)
+    targetEnemy.removeItemAll()
   }
 
   static processDamageObject () {
@@ -1469,9 +1534,9 @@ export class fieldState {
 export class fieldSystem {
   /**
    * 현재 진행되고 있는 라운드
-   * @type {RoundData | null}
+   * @type {RoundData | undefined}
    */
-  static round = null
+  static round = undefined
 
   /** 현재 상태값을 표시하는 ID */ static stateId = 0
   /** 일반적인 게임 진행 상태 */ static STATE_NORMAL = 0
@@ -1579,7 +1644,7 @@ export class fieldSystem {
       this.fieldItemCountList[index] += count
     }
     
-    fieldState.playerObject.addItem(id, count)
+    fieldState.playerObject._addItem(id, count)
   }
 
   /**
@@ -1612,21 +1677,17 @@ export class fieldSystem {
       }
     }
 
-    fieldState.playerObject.removeItem(id, count)
+    // 필드에서 아이템을 얻었는지와 관계없이 해당 아이템은 삭제함
+    fieldState.playerObject._removeItem(id, count)
   }
 
-  /**
-   * 라운드 오브젝트를 생성하고 이 객체을 리턴합니다.
-   */
+  /** 라운드 오브젝트를 생성하고 이 객체을 리턴합니다. */
   static createRound (roundId = 0) {
     const RoundClass = tamshooter4Data.getRound(roundId)
     if (RoundClass == null) return
 
-    //@ts-expect-error
     // 라운드 데이터
     let getObject = new RoundClass()
-    getObject.id = roundId // 라운드의 id를 입력해야 합니다. (다른곳에서는 입력하지 않음.)
-
     return getObject
   }
 
@@ -1645,6 +1706,7 @@ export class fieldSystem {
     // 이 과정에서 필드 데이터에 대해 초기화가 진행됩니다.
     this.roundImageSoundLoad() // 라운드 데이터 로드
 
+    this.roundId = roundId
     this.message = this.messageList.STATE_FIELD
     fieldState.allObjectReset()
     this.stateId = this.STATE_LOADING // 로딩 먼저 시작하고, 이것이 완료되면 로딩 과정을 생략
@@ -1697,9 +1759,7 @@ export class fieldSystem {
     }
   }
 
-  /**
-   * 해당 라운드의 골드에 대한 값을 계산합니다.
-   */
+  /** 해당 라운드의 골드에 대한 값을 계산합니다. */
   static getRoundGoldCalculation () {
     if (this.round == null) return 0
     if (this.round.time.currentTime < 30) return 0 // 적어도 30초이상 진행해야 골드를 얻을 수 있음.
@@ -1709,9 +1769,7 @@ export class fieldSystem {
     return gold * timeMultiple
   }
 
-  /**
-   * 점수 사운드 출력
-   */
+  /** 점수 사운드 출력 */
   static scoreSound () {
     if (this.exitDelayCount < this.SCORE_ENIMATION_MAX_FRAME 
       && this.exitDelayCount % this.SCORE_ENIMATION_INTERVAL === 0
@@ -1720,9 +1778,7 @@ export class fieldSystem {
     }
   }
 
-  /**
-   * 일시 정지 상태에서의 처리
-   */
+  /** 일시 정지 상태에서의 처리 */
   static processPause () {
     const buttonDown = game.control.getButtonInput(game.control.buttonIndex.DOWN)
     const buttonUp = game.control.getButtonInput(game.control.buttonIndex.UP)
@@ -1790,8 +1846,11 @@ export class fieldSystem {
     this.scoreEnimationFrame++
     this.exitDelayCount++
 
-    // 참고로 필드 점수가 0이면, 결과 계산 없이 바로 나갈 수 있습니다.
-    if (this.exitDelayCount >= this.EXIT_FAST_DELAY || this.fieldScore === 0) {
+    // 빠른 탈출 조건: 점수가 0이고, 아무런 아이템도 획득하지 못한 경우
+    let fastExitCondition = this.fieldScore === 0 && this.fieldItemIdList.length === 0
+
+    // 딜레이가 일정 값을 넘어가거나 빠른 탈출 조건에 해당하면, 나갈 수 있습니다.
+    if (this.exitDelayCount >= this.EXIT_FAST_DELAY || fastExitCondition) {
       this.roundExit()
     }
   }
@@ -1805,6 +1864,7 @@ export class fieldSystem {
       this.totalScore = this.fieldScore + this.round.stat.clearBonus
       this.message = this.messageList.REQUEST_SAVE // 강제 저장을 통해 필드 저장 데이터를 삭제하고, 메인화면으로 돌아가게끔 유도
       this.requestAddGold(this.getRoundGoldCalculation()) // 골드 추가
+      userSystem.addRoundClear(this.roundId) // 라운드 클리어 ID 추가
     }
 
     this.scoreSound()
@@ -1861,9 +1921,7 @@ export class fieldSystem {
     gameVar.statLineText2.setStatLineText(this.getFieldDataString(), this.round.time._currentTime, this.round.stat.finishTime, '#D5F5E3' ,'#33ff8c')
   }
 
-  /**
-   * 라운드 시간이 일시정지 되었을 때에 대한 메세지 출력 함수
-   */
+  /** 라운드 시간이 일시정지 되었을 때에 대한 메세지 출력 함수 */
   static processRoundTimePaused () {
     if (this.round == null) return
 
@@ -1922,7 +1980,6 @@ export class fieldSystem {
     // 라운드, 필드스테이트, 필드데이터는 항상 출력됩니다.
     if (this.round) this.round.display()
     fieldState.display()
-    // this.displayFieldData()
 
     switch (this.stateId) {
       case this.STATE_PAUSE:
@@ -1951,103 +2008,85 @@ export class fieldSystem {
   }
 
   static displayPause () {
-    const image = imageSrc.system.fieldSystem
-    const imageDataPause = imageDataInfo.fieldSystem.pause
-    const imageDataMenu = imageDataInfo.fieldSystem.menu
-    const imageDataArrow = imageDataInfo.fieldSystem.arrow
-    const imageDataChecked = imageDataInfo.fieldSystem.checked
-    const imageDataUnchecked = imageDataInfo.fieldSystem.unchecked
-    const imageDataSelected = imageDataInfo.fieldSystem.selected
-    const MID_X = (game.graphic.CANVAS_WIDTH / 2) - (imageDataPause.width / 2)
+    const src = imageSrc.system.fieldSystem
+    const imgD = imageDataInfo.fieldSystem
+    const imageObjectDisplay = gameFunction.imageObjectDisplay
+
+    const MID_X = (game.graphic.CANVAS_WIDTH / 2) - (imgD.pause.width / 2)
     const MID_Y = 100
-    const MENU_X = (game.graphic.CANVAS_WIDTH / 2) - (imageDataMenu.width / 2)
-    const MENU_Y = 100 + imageDataInfo.fieldSystem.pause.height
-    const ARROW_X = MENU_X - imageDataArrow.width
-    const ARROW_Y = MENU_Y + (this.cursor * imageDataArrow.height)
-    const CHECK_X = MENU_X + imageDataMenu.width
-    const CHECK_SOUND_Y = MENU_Y + imageDataChecked.height
-    const CHECK_MUSIC_Y = MENU_Y + imageDataChecked.height * 2
+    const MENU_X = (game.graphic.CANVAS_WIDTH / 2) - (imgD.menu.width / 2)
+    const MENU_Y = 100 + imgD.pause.height
+    const ARROW_X = MENU_X - imgD.arrow.width
+    const ARROW_Y = MENU_Y + (this.cursor * imgD.arrow.height)
+    const CHECK_X = MENU_X + imgD.menu.width
+    const CHECK_SOUND_Y = MENU_Y + imgD.checked.height
+    const CHECK_MUSIC_Y = MENU_Y + imgD.checked.height * 2
     const SELECT_X = MENU_X
     const SELECT_Y = ARROW_Y
-    const SCORE_X = (game.graphic.CANVAS_WIDTH / 2) - 200
-    const SCORE_Y = MENU_Y + imageDataMenu.height
-    const imageDataSoundOn = this.option.soundOn ? imageDataChecked : imageDataUnchecked // 사운드의 이미지데이터는 코드 길이를 줄이기 위해 체크/언체크에 따른 이미지 데이터를 대신 입력함
-    const imageDataMusicOn = this.option.musicOn ? imageDataChecked : imageDataUnchecked
 
-    game.graphic.imageDisplay(image, imageDataPause.x, imageDataPause.y, imageDataPause.width, imageDataPause.height, MID_X, MID_Y, imageDataPause.width, imageDataPause.height)
-    game.graphic.imageDisplay(image, imageDataMenu.x, imageDataMenu.y, imageDataMenu.width, imageDataMenu.height, MENU_X, MENU_Y, imageDataMenu.width, imageDataMenu.height)
-    game.graphic.imageDisplay(image, imageDataArrow.x, imageDataArrow.y, imageDataArrow.width, imageDataArrow.height, ARROW_X, ARROW_Y, imageDataArrow.width, imageDataArrow.height)
-    game.graphic.imageDisplay(image, imageDataSoundOn.x, imageDataSoundOn.y, imageDataSoundOn.width, imageDataSoundOn.height, CHECK_X, CHECK_SOUND_Y, imageDataSoundOn.width, imageDataSoundOn.height)
-    game.graphic.imageDisplay(image, imageDataMusicOn.x, imageDataMusicOn.y, imageDataMusicOn.width, imageDataMusicOn.height, CHECK_X, CHECK_MUSIC_Y, imageDataMusicOn.width, imageDataMusicOn.height)
-    game.graphic.imageDisplay(image, imageDataSelected.x, imageDataSelected.y, imageDataSelected.width, imageDataSelected.height, SELECT_X, SELECT_Y, imageDataSelected.width, imageDataSelected.height)
-    game.graphic.fillRect(SCORE_X, SCORE_Y, 400, 60, '#AEB68F')
-    digitalDisplay('score: ' + this.totalScore, SCORE_X + 5, SCORE_Y + 5)
-    digitalDisplay('gold: ' + this.fieldGold, SCORE_X + 5, SCORE_Y + 35)
+    imageObjectDisplay(src, imgD.pause, MID_X, MID_Y)
+    imageObjectDisplay(src, imgD.menu, MENU_X, MENU_Y)
+    imageObjectDisplay(src, imgD.arrow, ARROW_X, ARROW_Y)
+    imageObjectDisplay(src, this.option.soundOn ? imgD.checked : imgD.unchecked, CHECK_X, CHECK_SOUND_Y)
+    imageObjectDisplay(src, this.option.musicOn ? imgD.checked : imgD.unchecked, CHECK_X, CHECK_MUSIC_Y)
+    imageObjectDisplay(src, imgD.selected, SELECT_X, SELECT_Y)
+    this.displayPauseData()
 
-    // 아이템 출력?
-    game.graphic.fillRect(SCORE_X, SCORE_Y + 100, 400, 300, 'orange')
-    for (let i = 0; i < this.fieldItemIdList.length; i++) {
-      if (this.fieldItemCountList[i] <= 0) continue
+    const ITEM_X = game.graphic.CANVAS_WIDTH_HALF - (imageDataInfo.fieldSystem.fieldPauseData.width / 2) + 10
+    const ITEM_Y = 300 + 60
+    this.displayPlayerItem(ITEM_X, ITEM_Y)
+  }
 
-      let targetItem = dataExportStatItem.get(this.fieldItemIdList[i])
-      if (targetItem == null) continue
+  static displayPauseData () {
+    const IMAGE_X = game.graphic.CANVAS_WIDTH_HALF - (imageDataInfo.fieldSystem.fieldPauseData.width / 2)
+    const IMAGE_Y = 300
+    gameFunction.imageObjectDisplay(imageSrc.system.fieldSystem, imageDataInfo.fieldSystem.fieldPauseData, IMAGE_X, IMAGE_Y)
 
-      let src = imageSrc.system.itemIcon
-      let iconWidth = imageDataInfo.system.itemIcon.width
-      let iconSectionWidth = imageDataInfo.system.itemIcon.height
-      let XLINE = targetItem.iconNumber % 10
-      let YLINE = Math.floor(targetItem.iconNumber / 10)
-
-      game.graphic.imageDisplay(src, iconSectionWidth * XLINE, iconSectionWidth * YLINE, iconWidth, iconWidth, 400 + (iconWidth * i), 300, iconWidth, iconWidth)
-      digitalDisplay('X' + this.fieldItemCountList[i], 400 + (iconWidth * i), 300 + iconWidth + 10)
+    const pauseText = ['score: ' + this.fieldScore, 'gold: ' + this.fieldGold]
+    const TEXT_X = IMAGE_X + 10
+    const TEXT_Y = IMAGE_Y + 10
+    const TEXT_HEIGHT = 20
+    for (let i = 0; i < pauseText.length; i++) {
+      digitalDisplay(pauseText[i], TEXT_X, TEXT_Y + (TEXT_HEIGHT * i))
     }
   }
 
-  /**
-   * 결과 화면을 출력합니다. roundClear, gameOver, processExit 상태 모두 동일한 display 함수 사용
-   */
-  static displayResult () {
-    const image = imageSrc.system.fieldSystem
-    let imageData
-    let titleX = 0
-    const titleY = 100
-    const TEXT_X = 200
-    const TEXT_Y = 200
-    const TEXT_HEIGHT = 22
-
-    switch (this.stateId) {
-      case this.STATE_ROUND_CLEAR: imageData = imageDataInfo.fieldSystem.roundClear; break
-      case this.STATE_GAME_OVER: imageData = imageDataInfo.fieldSystem.gameOver; break
-      default: imageData = imageDataInfo.fieldSystem.result; break
+  static getResultText () {
+    let clearBonus = 0
+    if (this.stateId === this.STATE_ROUND_CLEAR && this.round != null) {
+      clearBonus = this.round.stat.clearBonus
     }
-
-    titleX = (game.graphic.CANVAS_WIDTH - imageData.width) / 2
 
     let viewScore = this.totalScore * (this.exitDelayCount / this.SCORE_ENIMATION_MAX_FRAME)
     if (viewScore >= this.totalScore) viewScore = this.totalScore
+
+    return [
+      'field score: ' + this.fieldScore,
+      'clear bonus: ' + clearBonus,
+      '--------------------',
+      'total score: ' + Math.floor(viewScore),
+      'gold       : ' + this.fieldGold,
+    ]
+  }
+
+  static displayResultData (positionX = 200, positionY = 200) {
+    gameFunction.imageObjectDisplay(imageSrc.system.fieldSystem, imageDataInfo.fieldSystem.fieldResultData, positionX, positionY)
 
     let clearBonus = 0
     if (this.stateId === this.STATE_ROUND_CLEAR && this.round != null) {
       clearBonus = this.round.stat.clearBonus
     }
 
-    game.graphic.imageDisplay(image, imageData.x, imageData.y, imageData.width, imageData.height, titleX, titleY, imageData.width, imageData.height)
-    game.graphic.fillRect(TEXT_X, TEXT_Y - 4, 400, TEXT_HEIGHT * 7, 'lime')
-
-    let resultText = [
-      'field score: ' + this.fieldScore,
-      'clear bonus: ' + clearBonus,
-      '--------------------------------------',
-      'total score: ' + Math.floor(viewScore),
-      'gold       : ' + this.fieldGold,
-    ]
-
+    let resultText = this.getResultText()
+    const TEXT_X = positionX + 10
+    const TEXT_Y = positionY + 10
+    const TEXT_HEIGHT = 20
     for (let i = 0; i < resultText.length; i++) {
       digitalDisplay(resultText[i], TEXT_X, TEXT_Y + (TEXT_HEIGHT * i))
     }
+  }
 
-    // 아이템 출력?
-    game.graphic.fillRect(200, 400, 400, 300, 'orange')
+  static displayPlayerItem (positionX = 200, positionY = 300) {
     for (let i = 0; i < this.fieldItemIdList.length; i++) {
       if (this.fieldItemCountList[i] <= 0) continue
 
@@ -2056,34 +2095,31 @@ export class fieldSystem {
 
       let src = imageSrc.system.itemIcon
       let iconWidth = imageDataInfo.system.itemIcon.width
-      let iconSectionWidth = imageDataInfo.system.itemIcon.height
+      let iconSectionWidth = imageDataInfo.system.itemIconSection.height
       let XLINE = targetItem.iconNumber % 10
       let YLINE = Math.floor(targetItem.iconNumber / 10)
 
-      game.graphic.imageDisplay(src, iconSectionWidth * XLINE, iconSectionWidth * YLINE, iconWidth, iconWidth, 400 + (iconWidth * i), 300, iconWidth, iconWidth)
-      digitalDisplay('X' + this.fieldItemCountList[i], 400 + (iconWidth * i), 300 + iconWidth + 10)
+      const outputX = positionX + ((iconWidth + 10) * i)
+      game.graphic.imageDisplay(src, iconSectionWidth * XLINE, iconSectionWidth * YLINE, iconWidth, iconWidth, outputX, positionY, iconWidth, iconWidth)
+      digitalDisplay('X' + this.fieldItemCountList[i], outputX, positionY + iconWidth)
     }
   }
 
-  /**
-   * 이 함수는 더이상 사용되지 않습니다.
-   * processNormal에서 필드 스탯이 출력되도록 변경되었습니다.
-   * @deprecated
-   */
-  static displayFieldData () {
-    const LAYER_X = game.graphic.CANVAS_WIDTH_HALF
-    const LAYER_Y = 570
-    const LAYER_DIGITAL_Y = 570 + 5
-    const HEIGHT = 30
-    const roundText = this.round != null ? this.round.stat.roundText : 'NULL'
-    const currentTime = this.round != null ? this.round.time._currentTime : '999'
-    const finishTime = this.round != null ? this.round.stat.finishTime : '999'
-    const plusTime = this.round != null ? this.round.time.plusTime : '0'
-    const meterMultiple = Number(currentTime) / Number(finishTime)
-    game.graphic.fillRect(LAYER_X, LAYER_Y, game.graphic.CANVAS_WIDTH_HALF, HEIGHT, 'silver')
-    game.graphic.fillRect(LAYER_X, LAYER_Y, game.graphic.CANVAS_WIDTH_HALF * meterMultiple, HEIGHT, '#D5F5E3')
-    digitalDisplay(`R:${roundText}, T:${currentTime}/${finishTime} + ${plusTime}`, LAYER_X + 5, LAYER_DIGITAL_Y)
+  /** 결과 화면을 출력합니다. roundClear, gameOver, processExit 상태 모두 동일한 display 함수 사용 */
+  static displayResult () {
+    let imageData = imageDataInfo.fieldSystem.result
+    if (this.stateId === this.STATE_ROUND_CLEAR) imageData = imageDataInfo.fieldSystem.roundClear
+    else if (this.stateId === this.STATE_GAME_OVER) imageData = imageDataInfo.fieldSystem.gameOver
+    const titleY = 100
+    const titleX = (game.graphic.CANVAS_WIDTH - imageData.width) / 2
+    gameFunction.imageObjectDisplay(imageSrc.system.fieldSystem, imageData, titleX, titleY)
 
+    const DATA_X = game.graphic.CANVAS_WIDTH_HALF - (imageDataInfo.fieldSystem.fieldResultData.width / 2)
+    const DATA_Y = titleY + imageDataInfo.fieldSystem.result.height + 20
+    const ITEM_X = DATA_X + 10
+    const ITEM_Y = DATA_Y + 120
+    this.displayResultData(DATA_X, DATA_Y)
+    this.displayPlayerItem(ITEM_X, ITEM_Y)
   }
 
   static getFieldDataString () {
@@ -2100,14 +2136,10 @@ export class fieldSystem {
     }
   }
 
-
   /**
    * 저장할 데이터를 얻습니다.
    */
   static fieldSystemSaveData () {
-    // let weapon = fieldState.weaponObject.map((data) => {
-    //   return data.fieldBaseSaveData()
-    // })
     // 무기는 저장 용량을 줄이기 위하여 스킬만 저장하도록 변경됩니다.
     // 일반 무기는 불러왔을 때 모두 삭제됩니다.
     let weaponObject = fieldState.weaponObject
@@ -2156,9 +2188,7 @@ export class fieldSystem {
     }
   }
 
-  /**
-   * 널 체크 문제 때문에 이 함수를 만듬...
-   */
+  /** 널 체크 문제 때문에 이 함수를 만듬... */
   static getRoundSaveData () {
     if (this.round != null) {
       return this.round.baseRoundSaveData()
@@ -2212,6 +2242,7 @@ export class fieldSystem {
 
     // 라운드는 단일 객체, 다만 라운드 데이터 입력 전에 라운드 객체를 생성해야 합니다.
     this.round = this.createRound(loadData.round.id)
+    this.roundId = loadData.round.id // 라운드의 id 재등록
     if (this.round == null) {
       throw new Error('round id error. game load fail')
     }

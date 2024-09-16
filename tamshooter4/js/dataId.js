@@ -22,7 +22,13 @@ export class ID {
     rapid: 10010,
     seondanil: 10011,
     boomerang: 10012,
-    subMultyshot: 10767,
+    kalnal: 10013,
+    cogwheel: 10014,
+    yeonsai: 10015,
+    sabangtan: 10016,
+    r3TowerPink: 10017,
+    r3TowerPurple: 10018,
+    r3Helljeon: 10019,
   }
 
   static playerSkill = {
@@ -48,11 +54,30 @@ export class ID {
     seondanil: 15017,
     hanjumoek: 15018,
     boomerang: 15019,
-    moon: 15020
+    moon: 15020,
+    kalnal: 15021,
+    cogwheel: 15022,
+    yeonsai: 15023,
+    sabangtan: 15024,
+    habirant: 15025,
+    icechaser: 15026,
+    calibur: 15027,
+    sujikpa: 15028,
+    speaker: 15029,
+    eomukggochi: 15030,
+    r2Firecracker: 15031,
+    r2Toyhammer: 15032,
+    r3Xkill: 15033,
+    r3Xshot: 15034,
+    r3Xbeam: 15035,
+    r3Xboom: 15036,
+    r3Helljeon: 15037,
   }
 
   static weapon = {
     unused: 0,
+
+    // group 1
     multyshot: 11010,
     missile: 11011,
     missileRocket: 11012,
@@ -66,13 +91,24 @@ export class ID {
     blaster: 11020,
     blasterMini: 11021,
     sidewave: 11022,
-    subMultyshot: 11023,
     rapid: 11024,
     ring: 11025,
     seondanil: 11026,
     boomerang: 11027,
 
-    // skill
+    // group 2
+    kalnal: 11028,
+    cogwheel: 11029,
+    yeonsai: 11030,
+    sabangtan: 11031,
+
+    // extend r3
+    r3TowerPink: 11032,
+    r3TowerPurple: 11033,
+    r3Helljeon: 11034,
+
+    // skill list
+    // group 1 skill
     skillMultyshot: 16001,
     skillMissile: 16002,
     skillArrow: 16003,
@@ -94,7 +130,36 @@ export class ID {
     skillSeondanilMini: 16019,
     skillHanjumoek: 16020,
     skillBoomerang: 16021,
-    skillMoon: 16022
+    skillMoon: 16022,
+
+    // group 2 skill
+    skillKalnal: 16023,
+    skillCogwheel: 16024,
+    skillYeonsai: 16025,
+    skillSabangtan: 16026,
+    skillHabirant: 16027,
+    skillHabirantSub: 16028,
+    skillIcechaser: 16029,
+    skillCalibur: 16030,
+    skillCaliburSub: 16031,
+    skillSujikpa: 16032,
+    skillSpeaker: 16033,
+    skillEomukggochi: 16034,
+    skillEomukggochiSub: 16035,
+
+    // round 2 donggrami skill
+    skillR2Firecraker: 16036,
+    skillR2Toyhammer: 16037,
+
+    // round 3 X series skill, helljeon
+    skillR3Xkill: 16038,
+    skillR3Xshot: 16039,
+    skillR3XshotSub: 16040,
+    skillR3Xbeam: 16041,
+    skillR3XbeamSub: 16042,
+    skillR3Xboom: 16043,
+    skillR3XboomSub: 16044,
+    skillR3Helljeon: 16045,
   }
 
   /**
@@ -194,14 +259,15 @@ export class ID {
     },
     intruder: {
       jemuBoss: 20210,
-      square: 20211,
-      metal: 20212,
-      diacore: 20223,
-      rendown: 20214,
-      lever: 20225,
-      flying1: 20226,
-      flying2: 20227,
-      flyingRocket: 20228,
+      jemuBossUltra: 20211,
+      square: 20212,
+      metal: 20213,
+      diacore: 20214,
+      rendown: 20215,
+      lever: 20216,
+      flying1: 20217,
+      flying2: 20218,
+      flyingRocket: 20219,
       gami: 20229,
       momi: 20230,
       hanoi: 20231,
@@ -324,32 +390,9 @@ export class ID {
     }
   }
 
-  /** 더이상 사용하지 않을 수 있음. @deprecated */
-  static enemyBullet = {
-    meteoriteBomb: 30140,
-    jemulEnemySpike: 30145,
-    jemulEnemyShip: 30146,
-    jemulEnemyAir: 30147
-  }
-
-  /** 더이상 사용하지 않을 수 있음. @deprecated */
-  static effect = {
-    missile: 40000,
-    parapo: 40001,
-    skillMissile: 40002,
-    skillParapo: 40003,
-    enemyBulletMeteoriteBomb: 40004,
-    jemulEnemyEnergyBoltAttack: 40005,
-    jemulstar: 40006,
-    jemulCreate: 40007
-  }
-
-  static sprite = {
-
-  }
-
   static round = {
-    UNUSED: 0,
+    /** 사용 안함 */ UNUSED: 0,
+    /** 이전 라운드 없음 */ PREVNULL: 0,
     test1Enemy: 70001,
     test2Background: 70002,
     test3Round3DownTower: 70003,
