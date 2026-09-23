@@ -9,8 +9,8 @@ export class StatUser {
 
   /** 경험치 테이블 */
   static expTable = [
-    0, 30000, 33000, 36000, 39000, 42000, 45000, 48000, 51000, 54000, // lv 0 ~ 9
-    60000, 62000, 64000, 66000, 68000, 70000, 72000, 74000, 76000, 78000, // lv 10 ~ 19
+    0, 20000, 22000, 24000, 26000, 28000, 30000, 32000, 34000, 36000, // lv 0 ~ 9
+    50000, 51000, 52000, 53000, 54000, 55000, 56000, 57000, 58000, 59000, // lv 10 ~ 19
     255500, 256000, 256500, 257000, 257500, 258000, 258500, 259000, 259500, 260000, // lv 20 ~ 29
     606600, 607200, 608400, 609000, 609600, 636600, 637200, 638400, 639000, 639600, // lv 30 ~ 39
     916000, 919000, 922000, 925000, 928000, 944000, 947000, 951000, 954000, 957000, // lv 40 ~ 49
@@ -19,12 +19,12 @@ export class StatUser {
 
   /** 공격력 보너스 테이블 */
   static attackLevelTable = [40000, // lv 0
-    40000, 41000, 42000, 43000, 44000, 45000, 46200, 47400, 48600, 50000, // lv 1 ~ 10 (40000 ~ 50000)
-    52000, 54000, 56000, 58000, 60000, 62000, 64000, 66000, 68000, 70000, // lv 11 ~ 20 (50000 ~ 70000)
-    71200, 72400, 73600, 74800, 76000, 77200, 78400, 79000, 79500, 80000, // lv 21 ~ 30 (70000 ~ 80000)
-    80400, 80800, 81200, 81600, 82000, 82400, 82800, 83200, 83600, 84000, // lv 31 ~ 40 (80000 ~ 84000)
-    84400, 84800, 85200, 85600, 86000, 86400, 86800, 87200, 87600, 88000, // lv 41 ~ 50 (84000 ~ 88000)
-    88400, 88800, 89200, 89600, 90000, 90200, 90400, 90600, 90800, 91000, // lv 51 ~ 55, 56 ~ 60 (88000 ~ 90000, 90000 ~ 92000)
+    40000, 41000, 42000, 43000, 44000, 45000, 46000, 47000, 48000, 50000, // lv 1 ~ 10 (40000 ~ 50000)
+    51000, 52000, 53000, 54000, 55000, 56000, 57000, 58000, 59000, 60000, // lv 11 ~ 20 (50000 ~ 60000)
+    61000, 62000, 63000, 64000, 65000, 66000, 67000, 68000, 69000, 70000, // lv 21 ~ 30 (60000 ~ 70000)
+    80400, 80800, 81200, 81600, 82000, 82400, 82800, 83200, 83600, 84000, // lv 31 ~ 40 (70000 ~ 78000)
+    84400, 84800, 85200, 85600, 86000, 86400, 86800, 87200, 87600, 88000, // lv 41 ~ 50 (78000 ~ 86000)
+    88400, 88800, 89200, 89600, 90000, 90200, 90400, 90600, 90800, 91000, // lv 51 ~ 55, 56 ~ 60 (?)
   ]
 }
 
@@ -56,6 +56,15 @@ export class StatWeapon {
     this.isMultiTarget = isMultiTarget
     this.maxTarget = maxTarget
     if (maxTarget === 0) maxTarget = isMultiTarget ? 20 : 1
+  }
+
+  /** 
+   * 팩토리 생성 함수
+   * 
+   * 이 함수는 StatWeapon의 생성자랑 동일한 역할을 합니다.
+   */
+  static create ({mainType = '', subType = '', repeatCount = 1, repeatDelay = 0, isChase = false, isMultiTarget = false, maxTarget = 0}) {
+    return new StatWeapon(mainType, subType, repeatCount, repeatDelay, isChase, isMultiTarget, maxTarget)
   }
 }
 
@@ -110,15 +119,39 @@ export class StatPlayerWeapon {
     return divide !== 0 ? Math.floor(totalDamage / divide) : 0
   }
 
+  /** 아이콘 번호를 가져옵니다.
+   * 참고: weaponId는 10001부터 시작합니다. 이걸 1번으로 가정하고 순차적으로 1씩 올라갑니다.
+   * 
+   * 잘못된 숫자인경우, 0으로 리턴합니다.
+   */
+  static getIconNumber (weaponId = 10001) {
+    let startNum = ID.playerWeapon.weaponNumberStart
+    if (weaponId >= startNum && weaponId < startNum + dataExportStatPlayerWeapon.size) {
+      return weaponId - ID.playerWeapon.weaponNumberStart
+    } else {
+      return 0
+    }
+  }
+
+  /** 
+   * 밸런스 타입 리스트
+   * 밸런스 규칙에 대한 내용은 statView.html 참고
+   */
   static balanceTypeList = {
-    /** 유니크/고유 (다른 무기와 달리 고유한 특징을 가지고 있음) */ UNIQUE: 'unique',
-    /** 멀티샷 (무기 발사 개체가 혼합형태, 단 스플래시는 아님) */ MULTYSHOT: 'multyshot',
+    /** 유니크/고유 (다른 무기와 달리 고유한 특징을 가지고 있음) @deprecated */ UNIQUE: 'unique',
+    /** 멀티샷 (무기 발사 개체가 혼합형태, 단 스플래시는 아님) -> 믹스드로 대체 @deprecated */ MULTYSHOT: 'multyshot',
+    /** 믹스드 (shot, chase의 혼합형인 경우, 단 스플래시는 포함할 수 없음) */ MIXED: 'mixed',
     /** 스플래시 (무기 1회 공격시에, 동시에 여러 적을 공격할 수 있는 경우, 다른 그룹보다 우선순위 높음) */ SPLASH: 'splash',
-    /** 리플렉트/반사 (무기가 벽에게 튕겨나갈 수 있는 경우, 적도 튕길 수 있으나 해당하는 무기는 거의 없음) */ REFLECT: 'reflect',
-    /** 페네트레이션/관통 (무기가 공격횟수가 남았을 때, 지속적으로 남은 적을 추가 공격할 수 있음.) */ PENETRATION: 'penetration',
+    /** 리플렉트/반사 (무기가 벽에게 튕겨나갈 수 있는 경우, 적도 튕길 수 있으나 해당하는 무기는 거의 없음) @deprecated  */ REFLECT: 'reflect',
+    /** 페네트레이션/관통 (무기가 공격횟수가 남았을 때, 지속적으로 남은 적을 추가 공격할 수 있음.) @deprecated  */ PENETRATION: 'penetration',
     /** 체이스/추적 (무기가 적을 무조건 추적만 하는 경우, 단 스플래시는 해당하지 않음.) */ CHASE: 'chase',
-    /** 프론트/전방 (무기는 반드시 플레이어의 기준 방향 으로만 발사됨, 따라서 위,아래만 발사하면 front가 아님) */ FRONT: 'front',
+    /** 프론트/전방 (무기는 반드시 플레이어의 기준 방향 으로만 발사됨, 따라서 위,아래만 발사하면 front가 아님) @deprecated  */ FRONT: 'front',
     /** 사이드웨이브 (무기 발사체는 여러방향을 띔, 멀티샷과는 다르게 성향은 1개, 방향은 여러개임) */ SIDEWAVE: 'sidewave',
+    /** 샷계열 - 벽 반사형, 최소 3회 이상 반사 필요: 배율 1.04 ~ 1.08 */ SHOT_REFLECT: 'shot-reflect',
+    /** 샷계열 - Xways, 밸런스 배율 상으로 전후방을 구분하지만, 같은 타입으로 관리됨 */ SHOT_XWAYS: 'shot-Xways',
+    /** 샷계열 - penetration, 관통형으로 나아가는 경우, 배율 임의 지정 */ SHOT_PENETRATION: 'shot-penetration',
+    /** 샷계열 - front/back, 샷이 직선 방향으로만 나아가는 경우, 반대 방향 또한 포함 */ SHOT_FRONTBACK: 'shot-frontback',
+    /** 샷계열 - unique, 특이한 이동방식을 가지고 있을 경우, 즉 왔다갔다 하거나 이리저리 돌아다니면 */ SHOT_UNIQUE: 'shot-unique'
   }
 
   /** 무기의 그룹 타입, 이 타입들은 해당 무기 잠금에 영향을 줄 수 있음. (스킬하고도 그룹 타입은 공유) */
@@ -180,6 +213,15 @@ export class StatPlayerSkill {
     if (this.group === PGroup.GROUP1 || this.group === PGroup.GROUP2 || this.group === '') {
       this.lock = false // 기본 무기는 자동 잠금 해제 (해당 요소를 조사할 필요가 없음)
     }
+
+    // 공격 배율 값은 최대 제한 수치가 부여됩니다.
+    if (attackMultiple > 1.2) {
+      attackMultiple = 1.2
+    } else if (balance === StatPlayerSkill.balanceTypeList.SPLASH && attackMultiple > 0.5) {
+      attackMultiple = 0.5
+    } else if (balance === StatPlayerSkill.balanceTypeList.AREA_SPLASH && attackMultiple > 0.6) {
+      attackMultiple = 0.6
+    }
   }
 
   /** 자신의 현재 공격력과 관련된 무기 공격력을 얻습니다. */
@@ -196,9 +238,30 @@ export class StatPlayerSkill {
 
   static balanceTypeList = {
     SPLASH: 'splash',
-    AREA: 'area',
+    /** @deprecated */ AREA: 'area',
     CHASE: 'chase',
-    SHOT: 'shot'
+    /** @deprecated */ SHOT: 'shot',
+    SHOT_REFLECT: 'shot-reflect',
+    SHOT_XWAY: 'shot-Xway',
+    SHOT_FRONT: 'shot-front',
+    AREA_SPLASH: 'area-splash',
+    AREA_DIVIED: 'area-divied',
+    AREA_ATTACK: 'area-attack',
+    FORMULA: 'formula',
+  }
+
+  /** 
+   * 스킬 id에 따른 아이콘 번호를 얻어옵니다. 
+   * 
+   * 스킬 id는 15000부터 시작합니다. 아이콘 번호는 15000을 기준으로 0이 되고 그 이후로 계속 증가
+  */
+  static getIconNumber (skillId = 0) {
+    let startNum = ID.playerSkill.skillNumberStart
+    if (skillId >= startNum && skillId < startNum + dataExportStatPlayerSkill.size) {
+      return skillId - ID.playerSkill.skillNumberStart
+    } else {
+      return 0
+    }
   }
 }
 
@@ -211,55 +274,90 @@ export class StatRound {
   /**
    * 각 라운드에 대한 기본적인 정보
    * 
-   * 주의: 이 값들은 절대적인 기준을 표현하지만, 일부 라운드는 예외가 있을 수 있습니다. (그러나, 극히 일부 라운드만 이 기준과는 조금 다른 기준을 사용합니다.)
-   * 
    * (라운드의 구현은 dataRound.js에서 처리합니다. 이 클래스는 스탯값만 정의하고 알고리즘 또는 라운드 구현을 하지 않습니다.)
    * 
-   * (참고: 입력될 내용의 문자열이 길 수 있기 때문에 roundInfo는 맨 마지막 매개변수로 지정되었습니다.)
+   * 생성자만으로 입력 정보가 부족하면, 내부 체이닝 set 메서드를 통해 추가로 데이터를 입력해주세요.
+   * 
    * @param {number} [iconNumber=-1] 라운드 아이콘의 번호 (roundIcon.png에 있는 여러 아이콘들중에 어떤것을 선택할건지에 대한 값), -1은 아이콘 없음
-   * @param {number} [prevRoundId=0] 이전 라운드의 id, 이 값이 0이 아닌경우 해당 라운드를 클리어 해야 오픈됨
    * @param {string} roundText 라운드 값을 표시할 텍스트, 예시: 1-1, 한글 사용 금지, 일부 기호와 알파벳만 사용가능, 최대 5글자까지 지원(검사하진 않음...)
-   * @param {string} roundName 라운드의 이름
    * @param {number} requireLevel 해당 라운드를 플레이하기 위한 최소 레벨 (해당 레벨 이상만 플레이 가능)
    * @param {number} requireAttack 기준 파워(전투력) 해당 라운드에서 얼마만큼의 전투력을 기준으로 적을 배치했는지에 대한 값
    * @param {number} finishTime 종료 시간(단위: 초), 해당 라운드를 클리어 하기 위해 사용해야 하는 시간 (단, 이것은 기준 시간이며, 일부 라운드는 특정 상황이 되면 강제로 클리어 할 수 있음.)
-   * @param {number} clearBonus 라운드를 클리어했을 때 얻는 점수
-   * @param {number} gold 라운드에 대한 골드의 값 (이 값은 10초당 획득하는 단위로 구성되어있습니다.)
-   * @param {string} roundInfo 
+   * @param {number} clearBonusScore 클리어 보너스 (이 라운드를 클리어 했을 때 얻는 추가 점수)
+   * @param {number} gold10SecRate 10초 단위를 기준으로 한 골드 값
    */
-  constructor (iconNumber = -1, prevRoundId = 0, roundText = 'NULL', roundName = 'NULL', requireLevel = 0, requireAttack = 0, finishTime = 1, clearBonus = 0, gold = 0, roundInfo = '') {
+  constructor (iconNumber = -1, roundText = 'NULL', requireLevel = 1, requireAttack = 40000, finishTime = 180, clearBonusScore = 30000, gold10SecRate = 0) {
     /** 아이콘의 번호 (-1인경우 없음) */ this.iconNumber = iconNumber
-    /** 이전 라운드의 id (이 값이 0이 아니면 해당 라운드를 클리어 해야 오픈됨) */ this.prevRoundId = prevRoundId
     /** 스탯라인에 표시될 라운드 텍스트값 (예를들어 1-1 같은거) */ this.roundText = roundText
-    /** 라운드의 이름 */ this.roundName = roundName
     /** 해당 라운드를 플레이하기 위한 최소 레벨 */ this.requireLevel = requireLevel
     /** 해당 라운드를 진행하기 위해 필요한 공격력값 (이 값의 90% 미만 플레이 불가능) */ this.requireAttack = requireAttack
     /** 라운드가 클리어되는 기준이 되는 시간 */ this.finishTime = finishTime
-    /** 라운드를 클리어했을 때 얻는 보너스 점수 */ this.clearBonus = clearBonus
-    /** 라운드를 플레이하면서 얻는 골드의 기준값, 10초단위로 계산됨 */ this.gold = gold
-    /** 라운드 설명 또는 정보 */ this.roundInfo = roundInfo
-    /** 총합 골드량 */ this.goldTotal = this.gold * Math.floor(finishTime / 10)
+    /** 라운드를 플레이하면서 얻는 골드의 기준값, 10초단위로 계산됨 */ this.gold10SecRate = gold10SecRate
+    /** 총합 골드량 */ this.goldTotal = this.gold10SecRate * Math.floor(finishTime / 10)
+    
+    /** 이전 라운드의 id (이 값이 0이 아니면 해당 라운드를 클리어 해야 오픈됨) @deprecated */ this.prevRoundId = 0
+    
+    /** 라운드의 이름 @deprecated */ this.roundName = ''
+    /** 라운드 설명 또는 정보 @deprecated */ this.roundInfo = ''
+    /** 라운드를 클리어했을 때 얻는 보너스 점수 */ this.clearBonusScore = clearBonusScore
+
+    /** 라운드 플레이에 기준이 되는 시간 값 */ this.baseTime = 0
+    /** 초 당 기준이 되는 점수 */ this.scorePerSecond = 0
 
     // 추가적인 옵션 자동 설정
-    /** 해당 라운드를 진행하기 위해 필요한 최소 공격력값 (이 값 미만은 플레이 불가능, 이 값은 필요값의 90%로 정의) */ 
+    /** 해당 라운드를 진행하기 위해 필요한 최소 공격력값 (이 값 미만은 플레이 불가능, 이 값은 필요값의 90%로 정의)
+     * 
+     * 아직 이 부분은 불확실하게 결정하였음.
+     * @deprecated */ 
     this.minAttack = Math.floor(requireAttack * 0.9)
   }
 
   /**
-   * 라운드의 밸런스 측정을 위해 만들어둔 요소
-   * @param {number} playTime 
-   * @param {number} balanceScore 
+   * 밸런스의 기준이 되는 값을 입력합니다. 이 값이 입력되지 않은 경우, 밸런스 정보는 누락된 것으로 간주합니다.
+   * 
+   * 주의: 기준이 되는건 사실이지만, 정확한 값을 보증하는 것이 아닙니다! 실제 점수는 오차가 크게 발생할 수도 있습니다.
+   * 
+   * @param {number} baseTime 기준 시간 (실제 개발자가 의도한 플레이 시간 값)
+   * @param {number} scorePerSecond 초당 점수값 (baseTime * scorePerSecond가 밸런스 점수의 기준값이 됩니다.)
    */
-  setBalancePosition (playTime, balanceScore) {
-    this.playTime = playTime
-    this.balanceScore = balanceScore
-    this.scoreTimeDiv = Math.floor(balanceScore / playTime)
+  setBalance (baseTime = 180, scorePerSecond = 400) {
+    this.baseTime = baseTime
+    this.scorePerSecond = scorePerSecond
+    return this
+  }
+
+  /**
+   * 라운드 정보를 설정합니다.
+   * @param {string} roundName 라운드 이름
+   * @param {string} roundInfo 라운드에 대한 정보 (가능하다면 1줄로 출력해주세요.)
+   */
+  setRoundInfo (roundName = '', roundInfo = '') {
+    this.roundName = roundName
+    this.roundInfo = roundInfo
+    return this
   }
 
   /** 라운드 월드에 대한 정보 (전부 static) */
   static world = class {
     /** 라운드 아이콘 리스트 (0번 라운드는 없기 때문에 -1임) */
     static iconList = [-1, 1, 10, 20]
+
+    /** 라운드 선택 화면에서 배열 인덱스에 따른 기본 라운드 표시 값입니다.
+     * 이 값은 상수라기 보다는, 보여지기 위한 값이므로 string으로 처리합니다.
+     * @type {string[]}
+     */
+    static baseRoundTextList = ['R: 1', 'R: 2', 'R: 3']
+
+    /** 라운드 선택 화면에서 활용되는 그리드 테이블입니다. 이 테이블을 참조하여 라운드 목록을 표시합니다. */
+    static roundSelectGridTable = [
+      // round 1, 2 (1-1 ~ 1-6, 2-1 ~ 2-6)
+      [ID.round.round1_1, ID.round.round1_2, ID.round.round1_3, ID.round.round1_4, ID.round.round1_5, ID.round.round1_6],
+      [ID.round.round2_1, ID.round.round2_2, ID.round.round2_3, ID.round.round2_4, ID.round.round2_5, ID.round.round2_6],
+
+      // round 3 (3-1 ~ 3-12)
+      [ID.round.round3_1, ID.round.round3_2, ID.round.round3_3, ID.round.round3_4, ID.round.round3_5, ID.round.round3_6, 
+       ID.round.round3_7, ID.round.round3_8, ID.round.round3_9, ID.round.round3_10, ID.round.round3_11, ID.round.round3_12],
+    ]
 
     /** 각 라운드를 대표하는 제목 */
     static TitleList = [
@@ -441,7 +539,6 @@ dataExportStatWeapon.set(ID.weapon.kalnal, new StatWeapon('kalnal', 'kalnal', 8,
 dataExportStatWeapon.set(ID.weapon.cogwheel, new StatWeapon('cogwheel', 'cogwheel', 30, 2, false, false, 10))
 dataExportStatWeapon.set(ID.weapon.yeonsai, new StatWeapon('yeonsai', 'yeonsai'))
 dataExportStatWeapon.set(ID.weapon.sabangtan, new StatWeapon('sabangtan', 'sabangtan', 2, 6, false, true, 10))
-dataExportStatWeapon.set(ID.weapon.subMultyshot, new StatWeapon('subweapon', 'subweapon'))
 dataExportStatWeapon.set(ID.weapon.r3TowerPink, new StatWeapon('towerpink', 'towerpink', 5, 0, false, false, 5))
 dataExportStatWeapon.set(ID.weapon.r3TowerPurple, new StatWeapon('towerpurple', 'towerpurple'))
 dataExportStatWeapon.set(ID.weapon.r3Helljeon, new StatWeapon('towerhelljeon', 'towerhelljeon'))
@@ -460,16 +557,16 @@ dataExportStatWeapon.set(ID.weapon.skillSword, new StatWeapon(Tskill, 'sword', 8
 dataExportStatWeapon.set(ID.weapon.skillHyperBall, new StatWeapon(Tskill, 'hyperball', 6, 0, false, false, 6))
 dataExportStatWeapon.set(ID.weapon.skillCriticalChaser, new StatWeapon(Tskill, 'criticalchaser', 4, 6, false, true, 35))
 dataExportStatWeapon.set(ID.weapon.skillPileBunker, new StatWeapon(Tskill, 'pilebunker', 16, 6, false, true, 4))
-dataExportStatWeapon.set(ID.weapon.skillSantansu, new StatWeapon(Tskill, 'santansu', 6, 9, false, true, 14))
+dataExportStatWeapon.set(ID.weapon.skillSantansu, new StatWeapon(Tskill, 'santansu', 6, 9, false, true, 50))
 dataExportStatWeapon.set(ID.weapon.skillWhiteflash, new StatWeapon(Tskill, 'whiteflash', 40, 4, true, true, 22))
 dataExportStatWeapon.set(ID.weapon.skillWhiteflashSmoke, new StatWeapon(TskillSub, 'whiteflashsmoke', 1, 4, true, true, 22))
 dataExportStatWeapon.set(ID.weapon.skillRing, new StatWeapon(Tskill, 'ring', 1, 1, false, false, 1))
 dataExportStatWeapon.set(ID.weapon.skillRapid, new StatWeapon(Tskill, 'rapid'))
 dataExportStatWeapon.set(ID.weapon.skillSeondanil, new StatWeapon(Tskill, 'seondanil', 50, 3))
 dataExportStatWeapon.set(ID.weapon.skillSeondanilMini, new StatWeapon(TskillSub, 'seondanilmini', 1, 3))
-dataExportStatWeapon.set(ID.weapon.skillHanjumoek, new StatWeapon(Tskill, 'hanjumoek', 30, 5, false, true, 26))
-dataExportStatWeapon.set(ID.weapon.skillBoomerang, new StatWeapon(Tskill, 'boomerang', 30, 3, false, false, 1))
-dataExportStatWeapon.set(ID.weapon.skillMoon, new StatWeapon(Tskill, 'moon', 90, 2, false, true, 9999))
+dataExportStatWeapon.set(ID.weapon.skillHanjumeok, new StatWeapon(Tskill, 'hanjumoek', 30, 5, false, true, 26))
+dataExportStatWeapon.set(ID.weapon.skillBoomerang, new StatWeapon(Tskill, 'boomerang', 30, 3, false, true, 3))
+dataExportStatWeapon.set(ID.weapon.skillMoon, new StatWeapon(Tskill, 'moon', 30, 3, false, true, 100))
 dataExportStatWeapon.set(ID.weapon.skillKalnal, new StatWeapon(Tskill, 'kalnal', 6, 8, false, false, 2))
 dataExportStatWeapon.set(ID.weapon.skillCogwheel, new StatWeapon(Tskill, 'cogwheel', 30, 6, false, true, 6))
 dataExportStatWeapon.set(ID.weapon.skillYeonsai, new StatWeapon(Tskill, 'yeonsai'))
@@ -504,26 +601,26 @@ const IDweapon = ID.playerWeapon
 const wGroup = StatPlayerWeapon.groupTypeList
 const wBalance = StatPlayerWeapon.balanceTypeList
 const pWeapon = StatPlayerWeapon
-DXweapon.set(IDweapon.unused, new pWeapon(wGroup.GROUP1, 'unused', wBalance.UNIQUE, 0, 0, 0, [ID.weapon.unused]))
-DXweapon.set(IDweapon.multyshot, new pWeapon(wGroup.GROUP1, 'multyshot', wBalance.MULTYSHOT, 10, 1, 6, [ID.weapon.multyshot]))
-DXweapon.set(IDweapon.missile, new pWeapon(wGroup.GROUP1, 'missile', wBalance.SPLASH, 30, 0.8, 4, [ID.weapon.missile, ID.weapon.missileRocket]))
-DXweapon.set(IDweapon.arrow, new pWeapon(wGroup.GROUP1, 'arrow', wBalance.REFLECT, 10, 1.04, 2, [ID.weapon.arrow]))
-DXweapon.set(IDweapon.laser, new pWeapon(wGroup.GROUP1, 'laser', wBalance.PENETRATION, 12, 1, 4, [ID.weapon.laser, ID.weapon.laserBlue]))
+DXweapon.set(IDweapon.unused, new pWeapon(wGroup.GROUP1, 'unused', wBalance.CHASE, 0, 0, 0, [ID.weapon.unused]))
+DXweapon.set(IDweapon.multyshot, new pWeapon(wGroup.GROUP1, 'multyshot', wBalance.MIXED, 10, 1.33, 6, [ID.weapon.multyshot]))
+DXweapon.set(IDweapon.missile, new pWeapon(wGroup.GROUP1, 'missile', wBalance.SPLASH, 30, 0.5, 4, [ID.weapon.missile, ID.weapon.missileRocket]))
+DXweapon.set(IDweapon.arrow, new pWeapon(wGroup.GROUP1, 'arrow', wBalance.SHOT_REFLECT, 10, 1.04, 2, [ID.weapon.arrow]))
+DXweapon.set(IDweapon.laser, new pWeapon(wGroup.GROUP1, 'laser', wBalance.MIXED, 12, 1.2, 4, [ID.weapon.laser, ID.weapon.laserBlue]))
 DXweapon.set(IDweapon.sapia, new pWeapon(wGroup.GROUP1, 'sapia', wBalance.CHASE, 10, 1, 1, [ID.weapon.sapia]))
-DXweapon.set(IDweapon.parapo, new pWeapon(wGroup.GROUP1, 'parapo', wBalance.SPLASH, 30, 0.81, 3, [ID.weapon.parapo]))
-DXweapon.set(IDweapon.blaster, new pWeapon(wGroup.GROUP1, 'blaster', wBalance.MULTYSHOT, 6, 1.07, 2, [ID.weapon.blaster, ID.weapon.blasterMini]))
-DXweapon.set(IDweapon.sidewave, new pWeapon(wGroup.GROUP1, 'sidewave', wBalance.SIDEWAVE, 15, 1.1, 8, [ID.weapon.sidewave]))
-DXweapon.set(IDweapon.ring, new pWeapon(wGroup.GROUP1, 'ring', wBalance.SIDEWAVE, 30, 1.12, 8, [ID.weapon.ring]))
-DXweapon.set(IDweapon.rapid, new pWeapon(wGroup.GROUP1, 'rapid', wBalance.FRONT, 4, 1.2, 3, [ID.weapon.rapid]))
-DXweapon.set(IDweapon.seondanil, new pWeapon(wGroup.GROUP1, 'seondanil', wBalance.UNIQUE, 60, 1.1, 5, [ID.weapon.seondanil]))
-DXweapon.set(IDweapon.boomerang, new pWeapon(wGroup.GROUP1, 'boomerang', wBalance.UNIQUE, 20, 1.06, 3, [ID.weapon.boomerang]))
-DXweapon.set(IDweapon.kalnal, new pWeapon(wGroup.GROUP2, 'kalnal', wBalance.REFLECT, 30, 1.04, 2, [ID.weapon.kalnal]))
-DXweapon.set(IDweapon.cogwheel, new pWeapon(wGroup.GROUP2, 'cogwheel', wBalance.PENETRATION, 40, 1.15, 1, [ID.weapon.cogwheel]))
-DXweapon.set(IDweapon.yeonsai, new pWeapon(wGroup.GROUP2, 'yeonsai', wBalance.SIDEWAVE, 6, 1.09, 6, [ID.weapon.yeonsai]))
-DXweapon.set(IDweapon.sabangtan, new pWeapon(wGroup.GROUP2, 'sabangtan', wBalance.SPLASH, 30, 0.88, 4, [ID.weapon.sabangtan]))
+DXweapon.set(IDweapon.parapo, new pWeapon(wGroup.GROUP1, 'parapo', wBalance.SPLASH, 30, 0.48, 3, [ID.weapon.parapo]))
+DXweapon.set(IDweapon.blaster, new pWeapon(wGroup.GROUP1, 'blaster', wBalance.SHOT_XWAYS, 6, 1.52, 2, [ID.weapon.blaster, ID.weapon.blasterMini]))
+DXweapon.set(IDweapon.sidewave, new pWeapon(wGroup.GROUP1, 'sidewave', wBalance.SIDEWAVE, 15, 1.46, 8, [ID.weapon.sidewave]))
+DXweapon.set(IDweapon.ring, new pWeapon(wGroup.GROUP1, 'ring', wBalance.SIDEWAVE, 30, 1.8, 8, [ID.weapon.ring]))
+DXweapon.set(IDweapon.rapid, new pWeapon(wGroup.GROUP1, 'rapid', wBalance.SHOT_FRONTBACK, 4, 1.6, 3, [ID.weapon.rapid]))
+DXweapon.set(IDweapon.seondanil, new pWeapon(wGroup.GROUP1, 'seondanil', wBalance.CHASE, 30, 1.0, 5, [ID.weapon.seondanil]))
+DXweapon.set(IDweapon.boomerang, new pWeapon(wGroup.GROUP1, 'boomerang', wBalance.SHOT_UNIQUE, 20, 1.55, 3, [ID.weapon.boomerang]))
+DXweapon.set(IDweapon.kalnal, new pWeapon(wGroup.GROUP2, 'kalnal', wBalance.CHASE, 20, 1.0, 2, [ID.weapon.kalnal]))
+DXweapon.set(IDweapon.cogwheel, new pWeapon(wGroup.GROUP2, 'cogwheel', wBalance.SHOT_PENETRATION, 40, 1.7, 1, [ID.weapon.cogwheel]))
+DXweapon.set(IDweapon.yeonsai, new pWeapon(wGroup.GROUP2, 'yeonsai', wBalance.SIDEWAVE, 6, 1.8, 6, [ID.weapon.yeonsai]))
+DXweapon.set(IDweapon.sabangtan, new pWeapon(wGroup.GROUP2, 'sabangtan', wBalance.SPLASH, 30, 0.5, 4, [ID.weapon.sabangtan]))
 DXweapon.set(IDweapon.r3TowerPink, new pWeapon(wGroup.R3_TOWER, 'towerpink', wBalance.CHASE, 15, 1, 1, [ID.weapon.r3TowerPink]))
-DXweapon.set(IDweapon.r3TowerPurple, new pWeapon(wGroup.R3_TOWER, 'towerpurple', wBalance.REFLECT, 10, 1.04, 2, [ID.weapon.r3TowerPurple]))
-DXweapon.set(IDweapon.r3Helljeon, new pWeapon(wGroup.R3_TOWER, 'helljeon', wBalance.MULTYSHOT, 10, 1.04, 4, [ID.weapon.r3Helljeon]))
+DXweapon.set(IDweapon.r3TowerPurple, new pWeapon(wGroup.R3_TOWER, 'towerpurple', wBalance.SHOT_REFLECT, 10, 1.04, 2, [ID.weapon.r3TowerPurple]))
+DXweapon.set(IDweapon.r3Helljeon, new pWeapon(wGroup.R3_TOWER, 'helljeon', wBalance.MIXED, 10, 1.3, 4, [ID.weapon.r3Helljeon]))
 
 /**
  * 외부에서 사용하기 위한 플레이어 스킬 스탯
@@ -537,41 +634,41 @@ const sBalance = StatPlayerSkill.balanceTypeList
 const pSkill = StatPlayerSkill
 DXskill.set(IDskill.unused, new pSkill(sGroup.GROUP1, 'unused', sBalance.SHOT, 0, 0, 0, 0, 0, [ID.weapon.unused]))
 DXskill.set(IDskill.multyshot, new pSkill(sGroup.GROUP1, 'multyshot', sBalance.CHASE, 20, 6, 1, 5, 30, [ID.weapon.skillMultyshot]))
-DXskill.set(IDskill.missile, new pSkill(sGroup.GROUP1, 'missile', sBalance.SPLASH, 20, 20, 0.8, 2, 4, [ID.weapon.skillMissile]))
-DXskill.set(IDskill.arrow, new pSkill(sGroup.GROUP1, 'arrow', sBalance.SHOT, 20, 9, 1, 2, 20, [ID.weapon.skillArrow]))
-DXskill.set(IDskill.laser, new pSkill(sGroup.GROUP1, 'laser', sBalance.AREA, 20, 0, 0.78, 1, 1, [ID.weapon.skillLaser]))
-DXskill.set(IDskill.sapia, new pSkill(sGroup.GROUP1, 'sapia', sBalance.AREA, 24, 60, 1, 4, 4, [ID.weapon.skillSapia]))
-DXskill.set(IDskill.parapo, new pSkill(sGroup.GROUP1, 'parapo', sBalance.SPLASH, 24, 10, 0.81, 1, 24, [ID.weapon.skillParapo]))
-DXskill.set(IDskill.blaster, new pSkill(sGroup.GROUP1, 'blaster', sBalance.SHOT, 24, 4, 1.25, 2, 40, [ID.weapon.skillBlaster]))
-DXskill.set(IDskill.sidewave, new pSkill(sGroup.GROUP1, 'sidewave', sBalance.SHOT, 20, 7, 1.08, 3, 24, [ID.weapon.skillSidewave]))
+DXskill.set(IDskill.missile, new pSkill(sGroup.GROUP1, 'missile', sBalance.SPLASH, 24, 20, 0.5, 2, 4, [ID.weapon.skillMissile]))
+DXskill.set(IDskill.arrow, new pSkill(sGroup.GROUP1, 'arrow', sBalance.SHOT_REFLECT, 20, 9, 1.04, 2, 20, [ID.weapon.skillArrow]))
+DXskill.set(IDskill.laser, new pSkill(sGroup.GROUP1, 'laser', sBalance.AREA_SPLASH, 20, 0, 0.5, 1, 1, [ID.weapon.skillLaser]))
+DXskill.set(IDskill.sapia, new pSkill(sGroup.GROUP1, 'sapia', sBalance.AREA_ATTACK, 24, 60, 1, 4, 4, [ID.weapon.skillSapia]))
+DXskill.set(IDskill.parapo, new pSkill(sGroup.GROUP1, 'parapo', sBalance.SPLASH, 24, 10, 0.44, 1, 24, [ID.weapon.skillParapo]))
+DXskill.set(IDskill.blaster, new pSkill(sGroup.GROUP1, 'blaster', sBalance.SHOT_FRONT, 24, 4, 1.2, 2, 40, [ID.weapon.skillBlaster]))
+DXskill.set(IDskill.sidewave, new pSkill(sGroup.GROUP1, 'sidewave', sBalance.SHOT_XWAY, 20, 7, 1.08, 3, 24, [ID.weapon.skillSidewave]))
 DXskill.set(IDskill.sword, new pSkill(sGroup.GROUP1, 'sword', sBalance.CHASE, 24, 0, 1, 1, 1, [ID.weapon.skillSword]))
 DXskill.set(IDskill.hyperBall, new pSkill(sGroup.GROUP1, 'hyperball', sBalance.CHASE, 20, 15, 1, 2, 12, [ID.weapon.skillHyperBall]))
-DXskill.set(IDskill.critcalChaser, new pSkill(sGroup.GROUP1, 'criticalchaser', sBalance.SPLASH, 28, 10, 0.96, 2, 12, [ID.weapon.skillCriticalChaser]))
-DXskill.set(IDskill.pileBunker, new pSkill(sGroup.GROUP1, 'pilebunker', sBalance.AREA, 28, 60, 1.32, 1, 1, [ID.weapon.skillPileBunker]))
-DXskill.set(IDskill.santansu, new pSkill(sGroup.GROUP1, 'santansu', sBalance.AREA, 24, 30, 0.95, 5, 5, [ID.weapon.skillSantansu]))
-DXskill.set(IDskill.whiteflash, new pSkill(sGroup.GROUP1, 'whiteflash', sBalance.AREA, 24, 0, 0.9, 1, 1, [ID.weapon.skillWhiteflash]))
-DXskill.set(IDskill.ring, new pSkill(sGroup.GROUP1, 'ring', sBalance.SHOT, 20, 12, 1.04, 8, 12, [ID.weapon.skillRing]))
-DXskill.set(IDskill.rapid, new pSkill(sGroup.GROUP1, 'rapid', sBalance.SHOT, 20, 4, 1.15, 4, 40, [ID.weapon.skillRapid]))
-DXskill.set(IDskill.seondanil, new pSkill(sGroup.GROUP1, 'seondanil', sBalance.SHOT, 28, 0, 1.2, 1, 1, [ID.weapon.skillSeondanil]))
-DXskill.set(IDskill.hanjumoek, new pSkill(sGroup.GROUP1, 'hanjumeok', sBalance.SPLASH, 28, 0, 1.1, 1, 1, [ID.weapon.skillHanjumoek]))
-DXskill.set(IDskill.boomerang, new pSkill(sGroup.GROUP1, 'boomerang', sBalance.AREA, 20, 0, 1.14, 3, 1, [ID.weapon.skillBoomerang]))
-DXskill.set(IDskill.moon, new pSkill(sGroup.GROUP1, 'moon', sBalance.AREA, 28, 1, 0.72, 1, 1, [ID.weapon.skillMoon]))
-DXskill.set(IDskill.kalnal, new pSkill(sGroup.GROUP2, 'kalnal', sBalance.SHOT, 20, 20, 1.08, 2, 6, [ID.weapon.skillKalnal]))
-DXskill.set(IDskill.cogwheel, new pSkill(sGroup.GROUP2, 'cogwheel', sBalance.AREA, 20, 0, 1.25, 1, 1, [ID.weapon.skillCogwheel]))
-DXskill.set(IDskill.yeonsai, new pSkill(sGroup.GROUP2, 'yeonsai', sBalance.SHOT, 20, 5, 1.07, 10, 30, [ID.weapon.skillYeonsai]))
-DXskill.set(IDskill.sabangtan, new pSkill(sGroup.GROUP2, 'sabangtan', sBalance.SPLASH, 20, 15, 0.88, 6, 5, [ID.weapon.skillSabangtan]))
-DXskill.set(IDskill.habirant, new pSkill(sGroup.GROUP2, 'habirant', sBalance.SHOT, 24, 0, 1, 1, 1, [ID.weapon.skillHabirant, ID.weapon.skillHabirantSub]))
-DXskill.set(IDskill.icechaser, new pSkill(sGroup.GROUP2, 'icechaser', sBalance.SPLASH, 28, 10, 1.02, 2, 12, [ID.weapon.skillIcechaser]))
-DXskill.set(IDskill.calibur, new pSkill(sGroup.GROUP2, 'calibur', sBalance.SHOT, 24, 1, 1.07, 1, 1, [ID.weapon.skillCalibur]))
-DXskill.set(IDskill.sujikpa, new pSkill(sGroup.GROUP2, 'sujikpa', sBalance.AREA, 20, 20, 0.82, 1, 8, [ID.weapon.skillSujikpa]))
-DXskill.set(IDskill.speaker, new pSkill(sGroup.GROUP2, 'speaker', sBalance.AREA, 24, 1, 0.85, 1, 1, [ID.weapon.skillSpeaker]))
-DXskill.set(IDskill.eomukggochi, new pSkill(sGroup.GROUP2, 'eomukggochi', sBalance.SHOT, 24, 0, 1.05, 1, 1, [ID.weapon.skillEomukggochi]))
-DXskill.set(IDskill.r2Firecracker, new pSkill(sGroup.DONGGRAMI, 'firecracker', sBalance.SPLASH, 24, 12, 0.86, 1, 15, [ID.weapon.skillR2Firecraker]))
+DXskill.set(IDskill.critcalChaser, new pSkill(sGroup.GROUP1, 'criticalchaser', sBalance.SPLASH, 28, 10, 0.6, 2, 12, [ID.weapon.skillCriticalChaser]))
+DXskill.set(IDskill.pileBunker, new pSkill(sGroup.GROUP1, 'pilebunker', sBalance.AREA_ATTACK, 28, 60, 1.3, 1, 1, [ID.weapon.skillPileBunker]))
+DXskill.set(IDskill.santansu, new pSkill(sGroup.GROUP1, 'santansu', sBalance.AREA_SPLASH, 24, 30, 0.3, 5, 5, [ID.weapon.skillSantansu]))
+DXskill.set(IDskill.whiteflash, new pSkill(sGroup.GROUP1, 'whiteflash', sBalance.AREA_SPLASH, 24, 0, 0.6, 1, 1, [ID.weapon.skillWhiteflash]))
+DXskill.set(IDskill.ring, new pSkill(sGroup.GROUP1, 'ring', sBalance.SHOT_XWAY, 20, 12, 1.04, 8, 12, [ID.weapon.skillRing]))
+DXskill.set(IDskill.rapid, new pSkill(sGroup.GROUP1, 'rapid', sBalance.SHOT_FRONT, 20, 4, 1.2, 4, 40, [ID.weapon.skillRapid]))
+DXskill.set(IDskill.seondanil, new pSkill(sGroup.GROUP1, 'seondanil', sBalance.CHASE, 28, 0, 1.1, 1, 1, [ID.weapon.skillSeondanil]))
+DXskill.set(IDskill.hanjumoek, new pSkill(sGroup.GROUP1, 'hanjumeok', sBalance.SPLASH, 28, 0, 0.57, 1, 1, [ID.weapon.skillHanjumeok]))
+DXskill.set(IDskill.boomerang, new pSkill(sGroup.GROUP1, 'boomerang', sBalance.AREA_ATTACK, 24, 0, 0.86, 3, 1, [ID.weapon.skillBoomerang]))
+DXskill.set(IDskill.moon, new pSkill(sGroup.GROUP1, 'moon', sBalance.FORMULA, 28, 1, 1.1, 1, 1, [ID.weapon.skillMoon]))
+DXskill.set(IDskill.kalnal, new pSkill(sGroup.GROUP2, 'kalnal', sBalance.SHOT_REFLECT, 20, 20, 1.08, 2, 6, [ID.weapon.skillKalnal]))
+DXskill.set(IDskill.cogwheel, new pSkill(sGroup.GROUP2, 'cogwheel', sBalance.AREA_ATTACK, 20, 0, 1.11, 1, 1, [ID.weapon.skillCogwheel]))
+DXskill.set(IDskill.yeonsai, new pSkill(sGroup.GROUP2, 'yeonsai', sBalance.SHOT_XWAY, 20, 5, 1.07, 10, 30, [ID.weapon.skillYeonsai]))
+DXskill.set(IDskill.sabangtan, new pSkill(sGroup.GROUP2, 'sabangtan', sBalance.SPLASH, 24, 15, 0.48, 6, 5, [ID.weapon.skillSabangtan]))
+DXskill.set(IDskill.habirant, new pSkill(sGroup.GROUP2, 'habirant', sBalance.CHASE, 24, 0, 1, 1, 1, [ID.weapon.skillHabirant, ID.weapon.skillHabirantSub]))
+DXskill.set(IDskill.icechaser, new pSkill(sGroup.GROUP2, 'icechaser', sBalance.SPLASH, 28, 10, 0.6, 2, 12, [ID.weapon.skillIcechaser]))
+DXskill.set(IDskill.calibur, new pSkill(sGroup.GROUP2, 'calibur', sBalance.CHASE, 24, 1, 1, 1, 1, [ID.weapon.skillCalibur]))
+DXskill.set(IDskill.sujikpa, new pSkill(sGroup.GROUP2, 'sujikpa', sBalance.AREA_SPLASH, 24, 20, 0.55, 1, 8, [ID.weapon.skillSujikpa]))
+DXskill.set(IDskill.speaker, new pSkill(sGroup.GROUP2, 'speaker', sBalance.AREA_ATTACK, 24, 1, 0.9, 1, 1, [ID.weapon.skillSpeaker]))
+DXskill.set(IDskill.eomukggochi, new pSkill(sGroup.GROUP2, 'eomukggochi', sBalance.CHASE, 24, 0, 1, 1, 1, [ID.weapon.skillEomukggochi]))
+DXskill.set(IDskill.r2Firecracker, new pSkill(sGroup.DONGGRAMI, 'firecracker', sBalance.SPLASH, 24, 12, 0.5, 1, 15, [ID.weapon.skillR2Firecraker]))
 DXskill.set(IDskill.r2Toyhammer, new pSkill(sGroup.DONGGRAMI, 'toyhammer', sBalance.CHASE, 24, 1, 1, 1, 1, [ID.weapon.skillR2Toyhammer]))
 DXskill.set(IDskill.r3Xkill, new pSkill(sGroup.R3_TOWER, 'Xkill', sBalance.CHASE, 24, 0, 1, 1, 1, [ID.weapon.skillR3Xkill]))
 DXskill.set(IDskill.r3Xshot, new pSkill(sGroup.R3_TOWER, 'Xshot', sBalance.SHOT, 24, 0, 1.05, 1, 1, [ID.weapon.skillR3Xshot]))
-DXskill.set(IDskill.r3Xbeam, new pSkill(sGroup.R3_TOWER, 'Xbeam', sBalance.AREA, 24, 0, 0.91, 1, 1, [ID.weapon.skillR3Xbeam]))
-DXskill.set(IDskill.r3Xboom, new pSkill(sGroup.R3_TOWER, 'Xboom', sBalance.SPLASH, 24, 0, 0.86, 1, 1, [ID.weapon.skillR3Xboom]))
+DXskill.set(IDskill.r3Xbeam, new pSkill(sGroup.R3_TOWER, 'Xbeam', sBalance.AREA_ATTACK, 24, 0, 0.94, 1, 1, [ID.weapon.skillR3Xbeam]))
+DXskill.set(IDskill.r3Xboom, new pSkill(sGroup.R3_TOWER, 'Xboom', sBalance.SPLASH, 24, 0, 0.5, 1, 1, [ID.weapon.skillR3Xboom]))
 DXskill.set(IDskill.r3Helljeon, new pSkill(sGroup.R3_TOWER, 'helljeon', sBalance.CHASE, 20, 5, 1, 2, 30, [ID.weapon.skillR3Helljeon]))
 
 /**
@@ -581,66 +678,37 @@ DXskill.set(IDskill.r3Helljeon, new pSkill(sGroup.R3_TOWER, 'helljeon', sBalance
 export const dataExportStatRound = new Map()
 dataExportStatRound.set(ID.round.UNUSED, new StatRound())
 // test
-dataExportStatRound.set(ID.round.test1Enemy, new StatRound(8, ID.round.PREVNULL, 'TEST1', 'enemy test', 0, 0, 9900, 0, 0, '테스트 라운드 (디버그 용도)'))
-dataExportStatRound.set(ID.round.test2Background, new StatRound(8, ID.round.PREVNULL, 'TEST2', 'background test', 0, 0, 9900, 0, 0))
-dataExportStatRound.set(ID.round.test3Round3DownTower, new StatRound(8, ID.round.PREVNULL, 'R3-TEST', 'downtower test', 20, 0, 9900, 0, 0, 'round3을 제작하는 과정에서 만들어진 테스트 라운드'))
-dataExportStatRound.set(ID.round.test4Sound, new StatRound(-1, ID.round.PREVNULL, 'TEST4', '사운드 테스트', 0, 0, 9999, 0, 0, '사운드 테스트'))
+dataExportStatRound.set(ID.round.test1Enemy, new StatRound(8, 'TEST1', 0, 0, 9900, 0, 0))
+dataExportStatRound.set(ID.round.test2Background, new StatRound(8, 'TEST2', 0, 0, 9900, 0, 0))
+dataExportStatRound.set(ID.round.test3Round3DownTower, new StatRound(8, 'R3-TEST', 20, 0, 9900, 0, 0))
+dataExportStatRound.set(ID.round.test4Sound, new StatRound(-1, 'TEST4', 0, 0, 9999, 0, 0))
 // round 1
-dataExportStatRound.set(ID.round.round1_1, new StatRound(2, ID.round.PREVNULL, '1-1', '우주 여행 - 공허', 1, 40000, 150, 30000, 10, ''))
-dataExportStatRound.set(ID.round.round1_2, new StatRound(3, ID.round.PREVNULL, '1-2', '운석 지대', 2, 40000, 180, 36000, 11, ''))
-dataExportStatRound.set(ID.round.round1_3, new StatRound(4, ID.round.PREVNULL, '1-3', '운석 지대 - 무인기 충돌', 3, 40000, 210, 39000, 11, ''))
-dataExportStatRound.set(ID.round.round1_4, new StatRound(5, ID.round.PREVNULL, '1-4', '의식의 공간', 5, 40000, 156, 38000, 10, ''))
-dataExportStatRound.set(ID.round.round1_5, new StatRound(6, ID.round.PREVNULL, '1-5', '운석 지대 - 레드 존', 6, 40000, 210, 41000, 11, ''))
-dataExportStatRound.set(ID.round.round1_6, new StatRound(7, ID.round.PREVNULL, '1-6', '우주 여행 - 파란 행성 가는 길', 7, 40000, 154, 35000, 11, ''))
+dataExportStatRound.set(ID.round.round1_1, new StatRound(2, '1-1', 0, 40000, 150, 30000, 10).setBalance(170, 400).setRoundInfo('우주 여행 - 공허'))
+dataExportStatRound.set(ID.round.round1_2, new StatRound(3, '1-2', 0, 40000, 180, 32000, 10).setBalance(180, 400).setRoundInfo('운석 지대'))
+dataExportStatRound.set(ID.round.round1_3, new StatRound(4, '1-3', 2, 44000, 180, 32000, 10).setBalance(180, 440).setRoundInfo('운석 지대 - 무인기 충돌'))
+dataExportStatRound.set(ID.round.round1_4, new StatRound(5, '1-4', 2, 44000, 155, 38000, 10).setBalance(150, 440).setRoundInfo('의식의 공간'))
+dataExportStatRound.set(ID.round.round1_5, new StatRound(6, '1-5', 4, 44000, 180, 34000, 10).setBalance(180, 440).setRoundInfo('운석 지대 - 레드 존'))
+dataExportStatRound.set(ID.round.round1_6, new StatRound(7, '1-6', 4, 44000, 152, 32000, 10).setBalance(170, 440).setRoundInfo('우주 여행 - 파란 행성 가는 길'))
 // round 2
-dataExportStatRound.set(ID.round.round2_1, new StatRound(11, ID.round.PREVNULL, '2-1', '파란 행성 - 하늘 300km ~ 250km', 10, 50000, 150, 40000, 12, ''))
-dataExportStatRound.set(ID.round.round2_2, new StatRound(12, ID.round.round2_1, '2-2', '동그라미 마을', 11, 50000, 170, 44000, 12, ''))
-dataExportStatRound.set(ID.round.round2_3, new StatRound(13, ID.round.round2_1, '2-3', '동그라미 스페이스', 12, 50000, 192, 48000, 12, ''))
-dataExportStatRound.set(ID.round.round2_4, new StatRound(14, ID.round.round2_1, '2-4', '동그라미 마을 홀', 14, 60000, 207, 52000, 13, ''))
-dataExportStatRound.set(ID.round.round2_5, new StatRound(15, ID.round.round2_4, '2-5', '지하실 전투', 15, 60000, 204, 32000, 13, ''))
-dataExportStatRound.set(ID.round.round2_6, new StatRound(16, ID.round.round2_4, '2-6', '폐허가 된 동그라미 마을', 16, 60000, 150, 48000, 12, ''))
+dataExportStatRound.set(ID.round.round2_1, new StatRound(11, '2-1', 10, 50000, 150, 40000, 10).setBalance(170, 500).setRoundInfo('파란 행성 - 하늘 300km ~ 250km'))
+dataExportStatRound.set(ID.round.round2_2, new StatRound(12, '2-2', 10, 50000, 170, 36000, 10).setBalance(170, 530).setRoundInfo('동그라미 마을'))
+dataExportStatRound.set(ID.round.round2_3, new StatRound(13, '2-3', 12, 50000, 182, 40000, 10).setBalance(175, 540).setRoundInfo('동그라미 스페이스'))
+dataExportStatRound.set(ID.round.round2_4, new StatRound(14, '2-4', 12, 55000, 190, 52000, 10).setBalance(190, 550).setRoundInfo('동그라미 마을 홀'))
+dataExportStatRound.set(ID.round.round2_5, new StatRound(15, '2-5', 14, 55000, 190, 15000, 10).setBalance(190, 550).setRoundInfo('지하실 전투'))
+dataExportStatRound.set(ID.round.round2_6, new StatRound(16, '2-6', 14, 55000, 150, 42000, 10).setBalance(150, 550).setRoundInfo('폐허가 된 동그라미 마을'))
 // round 3
-dataExportStatRound.set(ID.round.round3_1, new StatRound(21, ID.round.PREVNULL, '3-1', '다운 타워 1', 20, 70000, 200, 71400, 14, ''))
-dataExportStatRound.set(ID.round.round3_2, new StatRound(22, ID.round.PREVNULL, '3-2', '다운 타워 2', 21, 70000, 220, 72800, 14, ''))
-dataExportStatRound.set(ID.round.round3_3, new StatRound(23, ID.round.PREVNULL, '3-3', '다운 타워 3', 21, 70000, 200, 74200, 14, ''))
-dataExportStatRound.set(ID.round.round3_4, new StatRound(24, ID.round.PREVNULL, '3-4', '다운 타워 보이드', 22, 70000, 240, 78000, 14, ''))
-dataExportStatRound.set(ID.round.round3_5, new StatRound(25, ID.round.PREVNULL, '3-5', '안티 제물', 23, 70000, 610, 130000, 14, ''))
-dataExportStatRound.set(ID.round.round3_6, new StatRound(26, ID.round.round3_5, '3-6', '다운 타워 코어 1', 25, 77000, 220, 83800, 15, ''))
-dataExportStatRound.set(ID.round.round3_7, new StatRound(27, ID.round.round3_5, '3-7', '다운 타워 코어 2', 25, 77000, 220, 84600, 15, ''))
-dataExportStatRound.set(ID.round.round3_8, new StatRound(28, ID.round.round3_5, '3-8', '다운 타워 통로 1', 26, 77000, 220, 86600, 15, ''))
-dataExportStatRound.set(ID.round.round3_9, new StatRound(29, ID.round.round3_5, '3-9', '다운 타워 통로 2', 26, 77000, 220, 87800, 15, ''))
-dataExportStatRound.set(ID.round.round3_10, new StatRound(19, ID.round.round3_5, '3-10', '동그라미 마을로 돌아가는 길', 28, 77000, 447, 160000, 15, ''))
-
-
-/**
- * 외부에서 사용하기 위한 라운드 스탯 값
- * @type {Map<number, StatRoundBalance>}
- */
-export const dataExportStatRoundBalance = new Map()
-dataExportStatRoundBalance.set(ID.round.round1_1, new StatRoundBalance(150 + 30, 65000))
-dataExportStatRoundBalance.set(ID.round.round1_2, new StatRoundBalance(180 +  0, 80000))
-dataExportStatRoundBalance.set(ID.round.round1_3, new StatRoundBalance(210 +  0, 98000))
-dataExportStatRoundBalance.set(ID.round.round1_4, new StatRoundBalance(156 +  0, 72000))
-dataExportStatRoundBalance.set(ID.round.round1_5, new StatRoundBalance(210 +  0, 98000))
-dataExportStatRoundBalance.set(ID.round.round1_6, new StatRoundBalance(152 +  0, 78000))
-
-dataExportStatRoundBalance.set(ID.round.round2_1, new StatRoundBalance(150 + 20, 90000))
-dataExportStatRoundBalance.set(ID.round.round2_2, new StatRoundBalance(170 +  0, 98000))
-dataExportStatRoundBalance.set(ID.round.round2_3, new StatRoundBalance(192 -  8, 104000))
-dataExportStatRoundBalance.set(ID.round.round2_4, new StatRoundBalance(207 +  0, 110000))
-dataExportStatRoundBalance.set(ID.round.round2_5, new StatRoundBalance(200 +  0, 130000))
-dataExportStatRoundBalance.set(ID.round.round2_6, new StatRoundBalance(150 + 10, 94000))
-
-dataExportStatRoundBalance.set(ID.round.round3_1, new StatRoundBalance(200 + 40, 210000))
-dataExportStatRoundBalance.set(ID.round.round3_2, new StatRoundBalance(220 + 20, 210000))
-dataExportStatRoundBalance.set(ID.round.round3_3, new StatRoundBalance(200 + 40, 210000))
-dataExportStatRoundBalance.set(ID.round.round3_4, new StatRoundBalance(240 +  0, 230000))
-dataExportStatRoundBalance.set(ID.round.round3_5, new StatRoundBalance(610 +  0, 610000))
-dataExportStatRoundBalance.set(ID.round.round3_6, new StatRoundBalance(220 +  0, 220000))
-dataExportStatRoundBalance.set(ID.round.round3_7, new StatRoundBalance(220 +  0, 220000))
-dataExportStatRoundBalance.set(ID.round.round3_8, new StatRoundBalance(220 +  0, 220000))
-dataExportStatRoundBalance.set(ID.round.round3_9, new StatRoundBalance(220 + 30, 240000))
-dataExportStatRoundBalance.set(ID.round.round3_10, new StatRoundBalance(447 +  0, 460000))
+dataExportStatRound.set(ID.round.round3_1, new StatRound(21, '3-1', 20, 60000, 200, 45000, 10).setBalance(220, 700).setRoundInfo('다운 타워 1'))
+dataExportStatRound.set(ID.round.round3_2, new StatRound(22, '3-2', 20, 60000, 220, 45000, 10).setBalance(220, 700).setRoundInfo('다운 타워 2'))
+dataExportStatRound.set(ID.round.round3_3, new StatRound(23, '3-3', 20, 60000, 200, 45000, 10).setBalance(220, 700).setRoundInfo('다운 타워 3'))
+dataExportStatRound.set(ID.round.round3_4, new StatRound(24, '3-4', 22, 63000, 220, 32000, 14).setBalance(220, 740).setRoundInfo('다운 타워 보이드'))
+dataExportStatRound.set(ID.round.round3_5, new StatRound(24, '3-5', 22, 63000, 220, 32000, 14).setBalance(220, 740).setRoundInfo('다운 타워 중심부'))
+dataExportStatRound.set(ID.round.round3_6, new StatRound(25, '3-6', 23, 63000, 360, 64000, 14).setBalance(360, 800).setRoundInfo('안티 제물'))
+dataExportStatRound.set(ID.round.round3_7, new StatRound(26, '3-7', 24, 66000, 220, 45000, 15).setBalance(220, 780).setRoundInfo('다운 타워 코어 1'))
+dataExportStatRound.set(ID.round.round3_8, new StatRound(27, '3-8', 24, 66000, 220, 36000, 15).setBalance(220, 780).setRoundInfo('다운 타워 코어 2'))
+dataExportStatRound.set(ID.round.round3_9, new StatRound(28, '3-9', 24, 66000, 220, 36000, 15).setBalance(220, 780).setRoundInfo('다운 타워 통로 1'))
+dataExportStatRound.set(ID.round.round3_10, new StatRound(30, '3-10', 24, 66000, 220, 36000, 15).setBalance(220, 780).setRoundInfo('다운 타워 통로 2'))
+dataExportStatRound.set(ID.round.round3_11, new StatRound(31, '3-11', 26, 69000, 220, 34000, 15).setBalance(220, 800).setRoundInfo('다운 타워 외벽'))
+dataExportStatRound.set(ID.round.round3_12, new StatRound(32, '3-12', 26, 69000, 220, 34000, 15).setBalance(220, 800).setRoundInfo('동그라미 마을로 돌아가는 길'))
 
 /**
  * 외부에서 사용하기 위한 아이템 스탯 값
@@ -666,3 +734,4 @@ dataExportStatItem.set(ID.item.donggramiUSB, new StatItem(4, StatItem.TYPE_ITEM,
 dataExportStatItem.set(ID.item.hellgiComponent, new StatItem(5, StatItem.TYPE_ITEM, '헬기(hellgi) 부품(component)', 60, '다운타워에서 등장하는 헬기들이 부서지고 남은 부품들'))
 dataExportStatItem.set(ID.item.upgradeStone, new StatItem(6, StatItem.TYPE_ITEM, '강화석', 100, '강화할 때 필요한 아이템'))
 dataExportStatItem.set(ID.item.boseokTest, new StatItem(7, StatItem.TYPE_ITEM, '보석 테스트', 0, '보석 테스트 용도 아이템'))
+

@@ -8,8 +8,11 @@
  */
 export class ID {
   static playerWeapon = {
-    unused: 0,
-    /** 무기 번호를 가져올 때 사용(서브웨폰은 엉뚱한 번호를 가져온다.) */ weaponNumberStart: 10000,
+    /** 사용되지 않는 id @deprecated */ unused: 0,
+    /** 무기 번호를 가져올 때 사용(서브웨폰은 엉뚱한 번호를 가져온다.) 
+     * 지금은 목적이 바뀌어서 같은 값을 가진 또다른 변수를 만들었습니다.
+     *  @deprecated */ weaponNumberStart: 10000,
+    /** 10000번 코드는 다른 무기를 넘어가기 위한 아이콘으로 대체됨 */ nextWeaponChangeButton: 10000,
     multyshot: 10001,
     missile: 10002,
     arrow: 10003,
@@ -128,7 +131,7 @@ export class ID {
     skillRing: 16017,
     skillSeondanil: 16018,
     skillSeondanilMini: 16019,
-    skillHanjumoek: 16020,
+    skillHanjumeok: 16020,
     skillBoomerang: 16021,
     skillMoon: 16022,
 
@@ -249,6 +252,7 @@ export class ID {
       tree: 20197,
       leaf: 20198,
 
+      // 라운드 2-3 전용
       a1_fighter: 20200,
       b1_bounce: 20201,
       a2_brick: 20202,
@@ -256,6 +260,9 @@ export class ID {
       b2_mini: 20204,
       a3_collector: 20205,
       b3_mini: 20206,
+
+      /** 라운드 3 전용 */ r3_getLost: 20355,
+      /** 라운드 3 전용 */ r3_returnToMaeul: 20356,
     },
     intruder: {
       jemuBoss: 20210,
@@ -306,6 +313,8 @@ export class ID {
       pentagonMini: 20272,
       hexagonMini: 20273,
       octagonMini: 20274,
+      hellgrey: 20275,
+      hellgreyBoss: 20276,
     },
     towerEnemyGroup2: {
       barYellow: 20277,
@@ -387,6 +396,7 @@ export class ID {
       cutter: 20351,
       vacuumCleaner: 20352,
       gamokBangpae: 20353,
+      fakeHellgreyBoss: 20354,
     }
   }
 
@@ -406,25 +416,27 @@ export class ID {
     round1_5: 70015,
     round1_6: 70016,
     //
-    round2_1: 70021,
-    round2_2: 70022,
-    round2_3: 70023,
-    round2_4: 70024,
-    round2_5: 70025,
-    round2_6: 70026,
+    round2_1: 70017,
+    round2_2: 70018,
+    round2_3: 70019,
+    round2_4: 70020,
+    round2_5: 70021,
+    round2_6: 70022,
     //
-    round3_1: 70031,
-    round3_2: 70032,
-    round3_3: 70033,
-    round3_4: 70034,
-    round3_5: 70035,
-    round3_6: 70036,
-    round3_7: 70037,
-    round3_8: 70038,
-    round3_9: 70039,
-    round3_10: 70040,
+    round3_1: 70025,
+    round3_2: 70026,
+    round3_3: 70027,
+    round3_4: 70028,
+    round3_5: 70029,
+    round3_6: 70030,
+    round3_7: 70031,
+    round3_8: 70032,
+    round3_9: 70033,
+    round3_10: 70034,
+    round3_11: 70035,
+    round3_12: 70036,
     //
-    round4_1: 70041,
+    round4_1: 70040,
   }
 
   static equipment = {

@@ -59,7 +59,7 @@ class StatLineText {
 export class gameFunction {
   /**
    * digitalFont로 글자를 출력합니다. 너비 높이 비율은 2:3
-   * @param {string} inputText 입력할 텍스트
+   * @param {string | number} inputText 입력할 텍스트
    * @param {number} x 출력할 x좌표
    * @param {number} y 출력할 y좌표
    * @param {number} wordwidth 글자너비 2px 단위 권장
@@ -116,14 +116,17 @@ let digitalDisplay = gameFunction.digitalDisplay
 
 // 사운드 선 로딩
 // 나중에 후로딩 방식으로 변경할지 잘 모르겠음.
-for (let key in soundSrc.system) {
-  game.sound.createAudio(soundSrc.system[key])
+
+for (const src of Object.values(soundSrc.system)) {
+  game.sound.createAudio(src);
 }
-for (let key in soundSrc.music) {
-  game.sound.createAudio(soundSrc.music[key])
+
+for (const src of Object.values(soundSrc.music)) {
+  game.sound.createAudio(src);
 }
-for (let key in soundSrc.skill) {
-  game.sound.createAudio(soundSrc.skill[key])
+
+for (const src of Object.values(soundSrc.skill)) {
+  game.sound.createAudio(src);
 }
 
 
@@ -380,8 +383,11 @@ export class userSystem {
   /** 스킬 1세트의 개수 */
   static SKILL_LIST_COUNT = 8
 
-  /** 프리셋의 최대 번호 */
+  /** 프리셋의 최대 번호 (최대 개수가 아닙니다!) @deprecated */
   static PRESET_MAX_NUMBER = 4
+
+  /** 프리셋의 최대 개수 */
+  static PRESET_MAX_COUNT = 5
 
   /** 스킬 리스트의 프리셋 (모든 스킬번호는 연결되어있음. 각각 4개는 A/B슬롯을 나타냄. 8개가 1세트) */
   static skillPresetList = [
@@ -834,6 +840,9 @@ export class userSystem {
 
     // 스킬 교체
     this.skillList[skillSlotNumber] = skillId
+
+    // 스킬 교체 이후 화면에 다시 갱신
+    this.setSkillDisplayStatDefaultFunction()
     return true
   }
 
@@ -1109,13 +1118,15 @@ export class userSystem {
       const AREA_WIDTH = 75 // 300 / 4 = 75
       const NUMBER_X = LAYERX
       const SKILL_X = LAYERX + imageDataInfo.mainSystem.skillSlot1Available.width
-      const SKILL_WIDTH = 40
-      const SKILL_HEIGHT = 20
+      const SKILL_WIDTH = imageDataInfo.system.weaponSkillIcon.width
+      const SKILL_HEIGHT = imageDataInfo.system.weaponSkillIcon.height
       
       const OUTPUT_NUMBER_X = NUMBER_X + (i * AREA_WIDTH)
       const OUTPUT_SKILL_X = SKILL_X + (i * AREA_WIDTH)
       const OUTPUT_TIME_X = OUTPUT_SKILL_X
       const OUTPUT_TIME_Y = LAYERY1 + 1
+      const OUTPUT_SKILL_WIDTH = 40
+      const OUTPUT_SKILL_HEIGHT = 20
 
       // skill number display
       const imgD = imageDataInfo.mainSystem
@@ -1137,7 +1148,7 @@ export class userSystem {
           const skillNumber = this.skillDisplayStat[i].id - ID.playerSkill.skillNumberStart // 스킬의 ID는 15001부터 시작이라, 15000을 빼면, 스킬 번호값을 얻을 수 있음.
           const skillXLine = skillNumber % 10
           const skillYLine = Math.floor(skillNumber / 10)
-          game.graphic.imageDisplay(skillIconImage, skillXLine * SKILL_WIDTH, skillYLine * SKILL_HEIGHT, SKILL_WIDTH, SKILL_HEIGHT, OUTPUT_SKILL_X, LAYERY1, SKILL_WIDTH, SKILL_HEIGHT, 0, 0, 0.5)
+          game.graphic.imageDisplay(skillIconImage, skillXLine * SKILL_WIDTH, skillYLine * SKILL_HEIGHT, SKILL_WIDTH, SKILL_HEIGHT, OUTPUT_SKILL_X, LAYERY1, OUTPUT_SKILL_WIDTH, OUTPUT_SKILL_HEIGHT, 0, 0, 0.5)
         }
         digitalDisplay(this.skillDisplayStat[i].coolTime + '', OUTPUT_TIME_X, OUTPUT_TIME_Y) // 스킬 쿨타임 시간
       } else {
@@ -1145,7 +1156,7 @@ export class userSystem {
           const skillNumber = this.skillDisplayStat[i].id - ID.playerSkill.skillNumberStart // 스킬의 ID는 15001부터 시작이라, 15000을 빼면, 스킬 번호값을 얻을 수 있음.
           const skillXLine = skillNumber % 10
           const skillYLine = Math.floor(skillNumber / 10)
-          game.graphic.imageDisplay(skillIconImage, skillXLine * SKILL_WIDTH, skillYLine * SKILL_HEIGHT, SKILL_WIDTH, SKILL_HEIGHT, OUTPUT_SKILL_X, LAYERY1, SKILL_WIDTH, SKILL_HEIGHT)
+          game.graphic.imageDisplay(skillIconImage, skillXLine * SKILL_WIDTH, skillYLine * SKILL_HEIGHT, SKILL_WIDTH, SKILL_HEIGHT, OUTPUT_SKILL_X, LAYERY1, OUTPUT_SKILL_WIDTH, OUTPUT_SKILL_HEIGHT)
         }
       }
     }
@@ -1320,8 +1331,8 @@ export class userSystem {
       }
     }
 
-    let weaponPreset = []
-    let skillPreset = []
+    /** @type {number[]} */ let weaponPreset = []
+    /** @type {number[]} */ let skillPreset = []
     if (saveData.weaponPresetNumber) this.weaponPresetNumber = saveData.weaponPresetNumber
     if (saveData.skillPresetNumber) this.skillPresetNumber = saveData.skillPresetNumber
     if (saveData.weaponPreset) weaponPreset = saveData.weaponPreset

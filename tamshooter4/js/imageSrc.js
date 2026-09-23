@@ -222,6 +222,9 @@ export class imageDataInfo {
   /** 기본값 객체 (null 확인 방지용도) */
   static default = {
     unused: new ImageDataObject(0, 0, 1, 1, 1),
+    /** @deprecated */ roundIcon: new ImageDataObject(0, 0, 60, 60, 1),
+    /** @deprecated */ weaponIcon: new ImageDataObject(0, 0, 80, 40, 1),
+    /** @deprecated */ skillIcon: new ImageDataObject(0, 0, 80, 40, 1)
   }
 
   static spaceEnemy = {
@@ -512,6 +515,7 @@ export class imageDataInfo {
     hexagon: new ImageDataObject(720, 670, 110, 100, 1),
     octagon: new ImageDataObject(840, 670, 130, 130, 1),
     crazyRobot: new ImageDataObject(900, 0, 250, 300, 1),
+    hellgrey: new ImageDataObject(950, 1050, 90, 121, 1),
 
     // bullet
     bulletTapo: new ImageDataObject(0, 700, 90, 30, 1),
@@ -758,6 +762,9 @@ export class imageDataInfo {
     cameraAttackAreaShot: new ImageDataObject(701, 200, 100, 100),
     helltellAttack: new ImageDataObject(802, 200, 40, 60),
     radioAttack: new ImageDataObject(0, 600, 100, 40, 8),
+
+    // 3-10
+    fakeHellGreyBoss: new ImageDataObject(900, 1012, 90, 121)
   }
 
   static towerEnemyGroup5Gabudan = {
@@ -836,6 +843,13 @@ export class imageDataInfo {
     /** 라운드 요구 조건의 일부가 맞지 않음 (클리어 등등...) */ roundConditionLock: new ImageDataObject(140, 90, 60, 60),
     /** 라운드를 플레이 하고 클리어한경우 */ roundPlayAfterClear: new ImageDataObject(200, 90, 60, 60),
     /** 라운드가 아직 표시되지 않은 상태 */ roundDisplayQuestionMark: new ImageDataObject(260, 90, 60, 60),
+
+    /** 창 X 닫기 UI */ uiClose: new ImageDataObject(300, 210, 40, 40),
+    /** 무기 선택 창 프리셋 1 */ uiWeaponSelectPreset1: new ImageDataObject(0, 310, 40, 40),
+    /** 무기 선택 창 프리셋 2 */ uiWeaponSelectPreset2: new ImageDataObject(40, 310, 40, 40),
+    /** 무기 선택 창 프리셋 3 */ uiWeaponSelectPreset3: new ImageDataObject(80, 310, 40, 40),
+    /** 무기 선택 창 프리셋 4 */ uiWeaponSelectPreset4: new ImageDataObject(120, 310, 40, 40),
+    /** 무기 선택 창 프리셋 5 */ uiWeaponSelectPreset5: new ImageDataObject(160, 310, 40, 40),
   }
 
   static enemyDieEffectList = {
@@ -1059,15 +1073,15 @@ export class imageDataInfo {
   }
 
   static menuList = {
-    roundSelect: {x: 0, y: 0, width: 400, height: 40, frame: 1},
-    weaponSelect: {x: 0, y: 40, width: 400, height: 40, frame: 1},
-    skillSelect: {x: 0, y: 80, width: 400, height: 40, frame: 1},
-    upgrade: {x: 0, y: 120, width: 400, height: 40, frame: 1},
-    inventory: new ImageDataObject(0, 160, 400, 40),
-    story: new ImageDataObject(0, 200, 400, 40),
-    option: {x: 0, y: 240, width: 400, height: 40, frame: 1},
-    data: {x: 0, y: 280, width: 400, height: 40, frame: 1},
-    etc: {x: 0, y: 320, width: 400, height: 40, frame: 1}
+    roundSelect: {x: 0, y: 0, width: 200, height: 40, frame: 1},
+    weaponSelect: {x: 0, y: 40, width: 200, height: 40, frame: 1},
+    skillSelect: {x: 0, y: 80, width: 200, height: 40, frame: 1},
+    upgrade: {x: 0, y: 120, width: 200, height: 40, frame: 1},
+    inventory: new ImageDataObject(0, 160, 200, 40),
+    story: new ImageDataObject(0, 200, 200, 40),
+    option: {x: 0, y: 240, width: 200, height: 40, frame: 1},
+    data: {x: 0, y: 280, width: 200, height: 40, frame: 1},
+    etc: {x: 0, y: 320, width: 200, height: 40, frame: 1}
   }
 
   static system = {
@@ -1081,8 +1095,8 @@ export class imageDataInfo {
     itemIcon: new ImageDataObject(0, 0, 50, 50),
     itemIconSection: new ImageDataObject(0, 0, 60, 60),
 
-    /** 무기의 아이콘 기본 사이즈 */ weaponIcon: new ImageDataObject(0, 0, 40, 20),
-    /** 무기의 아이콘의 사이즈 2배값 */ weaponIconDoubleSize: new ImageDataObject(0, 0, 80, 40),
+    /** 무기 또는 스킬의 아이콘 기본 사이즈 */ weaponSkillIcon: new ImageDataObject(0, 0, 80, 40),
+    /** 무기의 아이콘의 사이즈 2배값 @deprecated */ weaponIconDoubleSize: new ImageDataObject(0, 0, 80, 20),
   }
 
   // : {x: , y: , width: , height: , frame: 1},

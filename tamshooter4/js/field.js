@@ -55,7 +55,7 @@ class DamageObject {
     /** 생성 Id */ this.createId = 0
   }
 
-  setData (x, y, attack) {
+  setData (x = 0, y = 0, attack = 0) {
     this.x = x
     this.y = y
     this.attack = attack
@@ -227,15 +227,17 @@ class PlayerObject extends FieldData {
     ]
 
     /**
-     * 서브 무기 슬롯
+     * 서브 무기 슬롯 (현재는 사용되지 않음)
      * 
      * 게임 규칙 상, 이 무기는 성능과 효과가 고정되어있습니다.
      * 무조건 유도성능을 가진 무기이며, 이 무기는 화면 바깥에 있는 적을 죽일 수 있게 하기 위한 무기입니다.
      * (사용자가 적이 남아있는것을 눈치채게 하기 위해서 일부러 이렇게 만들었습니다.)
+     * 
+     * @deprecated
      * @type {WeaponSlot}
      */
     this.subWeaponSlot = {
-      weapon: null, id: ID.playerWeapon.subMultyshot, delayCount: 0
+      weapon: null, id: ID.playerWeapon.multyshot, delayCount: 0
     }
 
     /**
@@ -388,27 +390,16 @@ class PlayerObject extends FieldData {
    * @param {number} damage 
    */
   damageCalcuration (damage) {
-    let shieldDamage = 0
-    let hpDamage = 0
+    // Gemini의 도움을 받아 코드 수정
+    // 1. 쉴드가 흡수할 수 있는 데미지 계산 (현재 쉴드량과 총 데미지 중 작은 값)
+    const shieldDamage = Math.min(this.shield, damage)
+    
+    // 2. 흡수하고 남은 데미지가 HP로 들어감
+    const hpDamage = damage - shieldDamage;
 
-    if (this.shield > damage) {
-      // 쉴드가 데미지보다 많을 때
-      shieldDamage = damage
-      this.shield -= damage
-    } else if (this.shield < damage) {
-      // 쉴드가 데미지보다 적을 때
-      if (this.shield > 0) {
-        // 쉴드가 0 초과인 경우
-        shieldDamage = this.shield
-        hpDamage = damage - this.shield
-        this.shield = 0
-        this.hp -= hpDamage
-      } else {
-        // 쉴드가 0인경우
-        hpDamage = damage
-        this.hp -= hpDamage
-      }
-    }
+    // 3. 상태 업데이트
+    this.shield -= shieldDamage;
+    this.hp -= hpDamage;
 
     // 총 데미지값 리턴
     return {
@@ -611,6 +602,10 @@ class PlayerObject extends FieldData {
     console.log(fieldState.weaponObject[0].x + ', ' + fieldState.weaponObject[0].y + ', ' + fieldState.weaponObject[0].targetObject.x + ', ' + fieldState.weaponObject[0].targetObject.y)
   }
 
+  /**
+   * 이 코드는 유저의 스탯을 강제로 mainSystem에 전송하기 위한 코드이며,
+   * 불러오기 한 직후, 또는 매 프레임 이후에 실행합니다.
+   */
   processSendUserStat () {
     userSystem.hp = this.hp
     userSystem.shield = this.shield
@@ -817,22 +812,32 @@ class PlayerObject extends FieldData {
    * @param {Object} saveData 
    */
   fieldBaseLoadData (saveData) {
-    for (let key in saveData) {
-      if (typeof saveData[key] === 'object') {
-        if (key === 'weapon') {
-          this.setLoadWeaponData(saveData[key])
-        } else if (key === 'skill') {
-          this.setLoadSkillData(saveData[key])
-        } else {
-          this[key] = saveData[key]
-        }
-      } else {
-        this[key] = saveData[key]
-      }
-    }
+    // for (let key in saveData) {
+    //   if (typeof saveData[key] === 'object') {
+    //     if (key === 'weapon') {
+    //       this.setLoadWeaponData(saveData[key])
+    //     } else if (key === 'skill') {
+    //       this.setLoadSkillData(saveData[key])
+    //     } else {
+    //       this[key] = saveData[key]
+    //     }
+    //   } else {
+    //     this[key] = saveData[key]
+    //   }
+    // }
 
     // 로드 후, 유저 스탯을 다시 갱신함 (hpCalc를 간접 계산하는 것 때문에 바로 갱신이 안되어 강제로 갱신함)
-    this.processSendUserStat()
+    // this.processSendUserStat() // 코드 취소됨
+  }
+
+  /** 로드 한 이후, 스킬과 무기를 재등록합니다. */
+  setLoadData () {
+    // 무기 슬롯 데이터 입력합니다.
+    for (let i = 0; i < this.weaponSlot.length; i++) {
+      this.weaponSlot[i].weapon = tamshooter4Data.getPlayerWeapon(this.weaponSlot[i].id)
+    }
+
+    this.skillClassInput()
   }
 
   /**
@@ -845,10 +850,7 @@ class PlayerObject extends FieldData {
       this.weaponSlot[i].id = data[i].id
     }
 
-    // 무기 슬롯 데이터 입력합니다.
-    for (let i = 0; i < this.weaponSlot.length; i++) {
-      this.weaponSlot[i].weapon = tamshooter4Data.getPlayerWeapon(this.weaponSlot[i].id)
-    }
+    
   }
 
   /**
@@ -1150,9 +1152,10 @@ export class fieldState {
    * 더이상 사용하지 마세요.
    * 
    * 보스를 생성하는데, 해당 보스 적 객체의 데이터랑 연결할 수 있도록 return이 추가되었습니다.
+   * @param {any} option 
    * @deprecated
    */
-  static createEnemyBoss (typeId, x = 0, y = 0, ...option) {
+  static createEnemyBoss (typeId = 0, x = 0, y = 0, ...option) {
     const GetClass = tamshooter4Data.getEnemy(typeId)
     if (GetClass == null) return
 
@@ -1372,19 +1375,15 @@ export class fieldState {
   static #processEnemyObjectItemCheck (targetEnemy) {
     // 만약 아이템이 있다면 그 아이템을 추가함
     let item = targetEnemy.getItem()
-    if (item.id.length === 0) return
+    if (item.id === 0) return // 아이템이 없는 경우 무시
 
-    if (item.id.length >= 1) {
-      for (let j = 0; j < item.id.length; j++) {
-        fieldSystem.requestAddItem(item.id[j], item.count[j]) // 필드시스템에 아이템 추가
-        let newEffect = new ItemDropEffect() // 이펙트 생성
-        newEffect.setItemId(item.id[j])
-        fieldState.createEffectObject(newEffect, targetEnemy.x, targetEnemy.y) // 이펙트 추가
-      }
-    }
+    fieldSystem.requestAddItem(item.id, item.count) // 필드시스템에 아이템 추가
+    let newEffect = new ItemDropEffect() // 이펙트 생성
+    newEffect.setItemId(item.id)
+    fieldState.createEffectObject(newEffect, targetEnemy.x, targetEnemy.y) // 이펙트 추가
 
     // 남은 아이템 전부 제거 (드랍이 완료되었으므로)
-    targetEnemy.removeItemAll()
+    targetEnemy.removeItem()
   }
 
   static processDamageObject () {
@@ -1531,12 +1530,167 @@ export class fieldState {
   }
 }
 
+class fieldSave {
+  /** 필드에 저장할 int32 객체, 총 256 * 64 * 4바이트 = 65536바이트 */
+  static array = new Int32Array(256 * 64)
+  static HEADER_OFFSET = 0
+  static HEADER_LENGTH = 16
+  static FIELD_OFFSET = 16
+  static FIELD_LENGTH = 32
+  static ROUND_OFFSET = 48
+  static ROUND_LENGTH = 128
+  static PLAYER_OFFSET = 176
+  static PLAYER_LENGTH = 64
+  static OBJECT_OFFSET = 240
+  static OBJECT_LENGTH = 64
+
+  static index = {
+    /** 헤어 영역 */ header : {
+      /** 배열의 시작 인덱스 */ START_INDEX: fieldSave.HEADER_OFFSET,
+      /** 헤더의 최대 길이 */ MAX_LENGTH: 16,
+      /** 버전 플래그 값, 이 값은 tamshooter saveSystem에서 직접 관리하고, 필드에서는 우선 0으로 대입합니다. */ VERSION_FLAG: 0,
+      /** 저장된 필드 객체의 총 개수 (오브젝트 타입 무관) */ OBJECT_COUNT: 4,
+      /** 저장된 배열의 전체 길이 */ TOTAL_LENGTH: 5,
+      /** 헤더의 끝 번호 */ HEADER_OFFSET_END: 15
+    },
+
+    /** 필드 시스템 영역 */ field : {
+      START_INDEX: fieldSave.FIELD_OFFSET,
+      MAX_LENGTH: 32,
+      STATEID: 0,
+      FIELD_SCORE: 1,
+      FIELD_GOLD: 2,
+      TOTAL_SCORE: 3,
+      ENIMATION_FRAME: 4,
+      EXIT_DELAY_COUNT: 5,
+      /** 필드에서 나온 총 아이템의 종류 수 */ FIELD_ITEM_LIST: 6,
+      /** 아이템의 ID 오프셋 번호 */ FIELD_ITEM_ID_OFFSET: 0,
+      /** 아이템의 개수 오프셋 번호 */ FIELD_ITEM_COUNT_OFFSET: 1,
+    },
+
+    /** 라운드 관련 */ round : {
+      /** 배열의 시작 인덱스 */ START_INDEX: fieldSave.ROUND_OFFSET,
+      MAX_LENGTH: fieldSave.ROUND_LENGTH,
+      ID: 0,
+      STATE: 1,
+      CURRENT_TIME: 2,
+      CURRENT_TIME_FRAME: 3,
+      CURRNET_TIME_TOTAL_FRAME: 4,
+      CURRENT_TIME_PAUSED: 5,
+      PLUS_TIME: 6,
+      PLUS_TIME_FRAME: 7,
+      CURRENT_MUSIC_INDEX: 8,
+      CURRENT_MUSIC_TIME: 9,
+      //---
+      BACKGROUND_INDEX_NUMBER: 10,
+      BACKGROUND_X: 11,
+      BACKGROUND_Y: 12,
+      BACKGROUND_SPEEDX: 13,
+      BACKGROUND_SPEEDY: 14,
+      BACKGROUND_WIDTH: 15,
+      BACKGROUND_HEIGHT: 16,
+      BGLAYER_OFFSET_START: 17, // BgLayer의 오프셋 시작 번호 (17 ~ 66, 60count)
+      BGLAYER_OFFSET_COUNT: 6, // BgLayer의 오프셋 개수
+      BGLAYER_MAX_COUNT: 10,
+      BGLAYER_X: 0,
+      BGLAYER_Y: 1,
+      BGLAYER_SPEEDX: 2,
+      BGLAYER_SPEEDY: 3,
+      BGLAYER_ALPHAEND: 4,
+      BGLAYER_ISSYNCHRONIZED: 5,
+      //---
+      EXTENDS_START: 72,
+      //---
+    },
+
+    /** 플레이어 관련 */ player : {
+      START_INDEX: fieldSave.PLAYER_OFFSET,
+      MAX_LENGTH: fieldSave.PLAYER_LENGTH,
+      X: 0,
+      Y: 1,
+      HP: 2,
+      SHIELD: 3,
+      SHIELDMAX: 4,
+      ATTACK_DELAY_COUNT: 5,
+      DIE_AFTER_DELAY_COUNT: 6,
+      WEAPON_SLOT_NUMBER: 7,
+      USING_SKILL_SLOTA: 8,
+      DISABLE: 9,
+      WEAPON: 10, // (10 ~ 17)
+      WEAPON_OFFSET_ID: 0,
+      WEAPON_OFFSET_DELAYCOUNT: 1,
+      SKILL: 18, // (18 ~ 49)
+      SKILL_OFFSET_ID: 0,
+      SKILL_OFFSET_DELAY_COUNT: 1,
+      SKILL_OFFSET_COOL_TIME_FRAME: 2,
+      SKILL_OFFSET_REPEAT_COUNT: 3,
+    },
+
+    /** 오브젝트 개체 영역 */ object : {
+      START_INDEX: fieldSave.OBJECT_OFFSET,
+      MAX_LENGTH: fieldSave.OBJECT_LENGTH,
+
+      // --- Header & ID ---
+      ID: 0,
+      OBJECT_TYPE: 1,
+      MAIN_TYPE: 2,
+      SUB_TYPE: 3,
+      CREATE_ID: 4,
+
+      // --- Transform & State ---
+      STATE: 5,
+      X: 6,
+      Y: 7,
+      Z: 8,
+      MOVE_SPEED_X: 9,
+      MOVE_SPEED_Y: 10,
+      MOVE_DIRECTION_X: 11,
+      MOVE_DIRECTION_Y: 12,
+      FLIP: 13,
+      DEGREE: 14,
+      WIDTH: 15,
+      HEIGHT: 16,
+
+      // --- Delay Data ---
+      // 딜레이 객체가 없으면 딜레이는 0으로 간주됨
+      DELAY: 17,
+      DELAY_COUNT: 18,
+      MOVE_DELAY: 19,
+      MOVE_COUNT: 20,
+      ATTACK_DELAY: 21,
+      ATTACK_COUNT: 22,
+      STATE_DELAY: 23,
+      STATE_COUNT: 24,
+      REPEAT_DELAY: 25,
+      REPEAT_COUNT: 26,
+
+      // --- Stats ---
+      ATTACK: 27,
+      DEFENSE: 28,
+      HP: 29,
+      HP_MAX: 30,
+
+      // --- Common System ---
+      ELAPSED_FRAME: 31,
+
+      // --- FieldExtends Start ---
+      EXTENDS_START: 32,
+
+      // --- Total Size ---
+      TOTAL_SLOT_SIZE: 64, // 개체당 무조건 64칸 고정 (256 바이트)
+    },
+  }
+}
+
 export class fieldSystem {
   /**
    * 현재 진행되고 있는 라운드
    * @type {RoundData | undefined}
    */
   static round = undefined
+
+  /** 필드 저장 데이터 (export 용도) */
+  static fieldSave = fieldSave
 
   /** 현재 상태값을 표시하는 ID */ static stateId = 0
   /** 일반적인 게임 진행 상태 */ static STATE_NORMAL = 0
@@ -1616,13 +1770,22 @@ export class fieldSystem {
     fieldState.playerObject.plusExp(score)
   }
 
-  /** 플레이어의 골드를 증가시키도록 요청 */
+  /** 
+   * 플레이어의 골드를 증가시키도록 요청
+   * 
+   * 참고: 이 골드 추가는 던전 진행이 끝나야만 처리되므로, 필드 중간에 저장하진 않습니다.
+   */
   static requestAddGold (gold = 0) {
     this.fieldGold += gold
     fieldState.playerObject.plusGold(gold)
   }
 
-  /** 플레이어의 골드를 감소시키도록 요청 */
+  /** 플레이어의 골드를 감소시키도록 요청
+   * 
+   * 이 함수는 매우 특수한 경우에만 사용됩니다.
+   * 
+   * round 2-4 같은 경우의 사용을 예정하고 있으나 코드가 구현되지 않음.
+   */
   static requestSubtractGold (gold = 0) {
     this.fieldGold -= gold
     fieldState.playerObject.plusGold(gold)
@@ -1630,6 +1793,8 @@ export class fieldSystem {
 
   /**
    * 플레이어에게 아이템을 추가시키도록 요청
+   * 
+   * 이 요청을 받으면 리스트를 필드 목록에 쌓은 다음, 던전 진행이 끝난 후 (게임 오버를 포함) 아이템을 직접 추가합니다.
    * @param {number} id 아이템의 id (id가 0인경우 무효)
    * @param {number} count 아이템의 개수 (0이하는 무효)
    */
@@ -1643,8 +1808,17 @@ export class fieldSystem {
     } else {
       this.fieldItemCountList[index] += count
     }
-    
-    fieldState.playerObject._addItem(id, count)
+  }
+
+  /**
+   * 플레이어에게 아이템을 직접 추가합니다.
+   * 
+   * 이것은 던전이 끝난 후에 적용합니다.
+   */
+  static requestPlayerAddItem () {
+    for (let i = 0; i < this.fieldItemIdList.length; i++) {
+      fieldState.playerObject._addItem(this.fieldItemIdList[i], this.fieldItemCountList[i])
+    }
   }
 
   /**
@@ -1764,7 +1938,7 @@ export class fieldSystem {
     if (this.round == null) return 0
     if (this.round.time.currentTime < 30) return 0 // 적어도 30초이상 진행해야 골드를 얻을 수 있음.
 
-    let gold = this.round.stat.gold
+    let gold = this.round.stat.gold10SecRate
     let timeMultiple = Math.floor(this.round.time.currentTime / 10)
     return gold * timeMultiple
   }
@@ -1786,7 +1960,7 @@ export class fieldSystem {
     const buttonA = game.control.getButtonInput(game.control.buttonIndex.A)
     const buttonB = game.control.getButtonInput(game.control.buttonIndex.B)
     const maxMenuNumber = 3
-    game.sound.setEchoDisable() // 에코 기능 정지
+    // game.sound.setEchoDisable() // 에코 기능 정지 (에코 기능이 게임에서 사용되지 않는 것으로 판단)
     // game.sound.setMusicEcho() // 에코 기능 정지 [음악은 정지해야할지 잘 모르겠음]
 
     if (buttonUp && this.cursor > 0) {
@@ -1820,8 +1994,11 @@ export class fieldSystem {
     if (isResume) {
       this.stateId = this.STATE_NORMAL // pause 상태 해제
       if (this.round != null) { // round 음악 다시 재생
-        game.sound.musicResume()
+        // game.sound.musicResume()
+        this.round.sound.musicResume() // resume 상태가 해제되면 음악을 다시 재생시키도록 합니다.
       }
+    } else if (this.round != null) {
+      this.round.sound.musicPause()
     }
   }
 
@@ -1839,8 +2016,7 @@ export class fieldSystem {
     // 사용자가 나가면 현재까지 얻은 점수를 보여줌, 따로 출력할 배경 사운드는 없음
     this.scoreSound()
     if (this.exitDelayCount === 0) {
-      this.message = this.messageList.REQUEST_SAVE // 강제 저장을 통해 필드 저장 데이터를 삭제하고, 메인화면으로 돌아가게끔 유도
-      this.requestAddGold(this.getRoundGoldCalculation()) // 골드 추가
+      this.roundEndWait()
     }
 
     this.scoreEnimationFrame++
@@ -1860,10 +2036,9 @@ export class fieldSystem {
     if (this.exitDelayCount === 0 && this.round != null) {
       let clearSoundSrc = this.round.clearSoundSrc !== '' ? this.round.clearSoundSrc : soundSrc.system.systemRoundClear
       game.sound.play(clearSoundSrc)
-      userSystem.plusExp(this.round.stat.clearBonus)
-      this.totalScore = this.fieldScore + this.round.stat.clearBonus
-      this.message = this.messageList.REQUEST_SAVE // 강제 저장을 통해 필드 저장 데이터를 삭제하고, 메인화면으로 돌아가게끔 유도
-      this.requestAddGold(this.getRoundGoldCalculation()) // 골드 추가
+      userSystem.plusExp(this.round.stat.clearBonusScore)
+      this.totalScore = this.fieldScore + this.round.stat.clearBonusScore
+      this.roundEndWait()
       userSystem.addRoundClear(this.roundId) // 라운드 클리어 ID 추가
     }
 
@@ -1881,8 +2056,7 @@ export class fieldSystem {
     // 라운드 실패 사운드 재생 (딜레이카운트가 0일때만 재생해서 중복 재생 방지)
     if (this.exitDelayCount === 0) {
       game.sound.play(soundSrc.system.systemGameOver)
-      this.message = this.messageList.REQUEST_SAVE // 강제 저장을 통해 필드 저장 데이터를 삭제하고, 메인화면으로 돌아가게끔 유도
-      this.requestAddGold(this.getRoundGoldCalculation()) // 골드 추가
+      this.roundEndWait()
     }
 
     this.scoreSound()
@@ -1893,6 +2067,17 @@ export class fieldSystem {
     if (this.exitDelayCount >= this.EXIT_GAME_OVER_DELAY) {
       this.roundExit()
     }
+  }
+
+  /** 라운드 진행이 종료 대기 (클리어, 게임오버, 중단) 되었을 때 해당 함수를 실행합니다. 
+   * 이후에 시간이 더 지나면 roundExit가 실행되어 라운드를 빠져나갑니다.
+   * 
+   * 이 함수 자체는 라운드를 나가지 못합니다.
+  */
+  static roundEndWait () {
+    this.message = this.messageList.REQUEST_SAVE // 강제 저장을 통해 필드 저장 데이터를 삭제하고, 메인화면으로 돌아가게끔 유도
+    this.requestAddGold(this.getRoundGoldCalculation()) // 골드 추가
+    this.requestPlayerAddItem() // 플레이어에게 아이템 추가
   }
 
   static processNormal () {
@@ -1945,7 +2130,7 @@ export class fieldSystem {
 
     switch (this.stateId) {
       case this.STATE_PAUSE:
-        game.sound.musicPause()
+        // game.sound.musicPause()
         this.processPause()
         break
       case this.STATE_ROUND_CLEAR:
@@ -1959,7 +2144,6 @@ export class fieldSystem {
       case this.STATE_EXIT:
         game.sound.musicStop()
         this.processExit()
-        game.control.getButtonInput(game.control.buttonIndex.START) // 버튼 중복 누르기 방지용
         break
       case this.STATE_LOADING:
       case this.STATE_LOADING_PAUSE:
@@ -2054,7 +2238,7 @@ export class fieldSystem {
   static getResultText () {
     let clearBonus = 0
     if (this.stateId === this.STATE_ROUND_CLEAR && this.round != null) {
-      clearBonus = this.round.stat.clearBonus
+      clearBonus = this.round.stat.clearBonusScore
     }
 
     let viewScore = this.totalScore * (this.exitDelayCount / this.SCORE_ENIMATION_MAX_FRAME)
@@ -2074,7 +2258,7 @@ export class fieldSystem {
 
     let clearBonus = 0
     if (this.stateId === this.STATE_ROUND_CLEAR && this.round != null) {
-      clearBonus = this.round.stat.clearBonus
+      clearBonus = this.round.stat.clearBonusScore
     }
 
     let resultText = this.getResultText()
@@ -2136,56 +2320,215 @@ export class fieldSystem {
     }
   }
 
+  static fieldSystemSaveDataV055 () {
+    // header insert
+    // round data
+
+    const hs = fieldSave.index.header
+    const fe = fieldSave.index.field
+    const pl = fieldSave.index.player
+    const rd = fieldSave.index.round
+    const ob = fieldSave.index.object
+    fieldSave.array[hs.START_INDEX + hs.VERSION_FLAG] = 0
+
+    // field
+    fieldSave.array[fe.START_INDEX + fe.STATEID] = this.stateId
+    fieldSave.array[fe.START_INDEX + fe.FIELD_SCORE] = this.fieldScore
+    fieldSave.array[fe.START_INDEX + fe.FIELD_GOLD] = this.fieldGold
+    fieldSave.array[fe.START_INDEX + fe.TOTAL_SCORE] = this.totalScore
+    fieldSave.array[fe.START_INDEX + fe.ENIMATION_FRAME] = this.enimationFrame == null ? 0 : this.enimationFrame
+    fieldSave.array[fe.START_INDEX + fe.EXIT_DELAY_COUNT] = this.exitDelayCount
+    for (let i = 0; i < this.fieldItemIdList.length && i < fe.MAX_LENGTH - 8; i++) {
+      const FINDEX = fe.START_INDEX + fe.FIELD_ITEM_LIST + (i * 2)
+      fieldSave.array[FINDEX + fe.FIELD_ITEM_ID_OFFSET]
+      fieldSave.array[FINDEX + fe.FIELD_ITEM_COUNT_OFFSET]
+    }
+    
+    //round
+    if (this.round == null) {
+      fieldSave.array[rd.START_INDEX + rd.ID] = 0
+    } else {
+      fieldSave.array[rd.START_INDEX + rd.ID] = this.round.stat.id ? this.round.stat.id : 0
+      fieldSave.array[rd.START_INDEX + rd.STATE] = this.round.state
+      fieldSave.array[rd.START_INDEX + rd.CURRENT_TIME] = this.round.time.currentTime
+      fieldSave.array[rd.START_INDEX + rd.CURRENT_TIME_FRAME] = this.round.time.currentTimeFrame
+      fieldSave.array[rd.START_INDEX + rd.CURRNET_TIME_TOTAL_FRAME] = this.round.time.currentTimeTotalFrame
+      fieldSave.array[rd.START_INDEX + rd.CURRENT_TIME_PAUSED] = this.round.time.currentTimePaused ? 1 : 0
+      fieldSave.array[rd.START_INDEX + rd.PLUS_TIME] = this.round.time.plusTime
+      fieldSave.array[rd.START_INDEX + rd.PLUS_TIME_FRAME] = this.round.time.plusTimeFrame
+      fieldSave.array[rd.START_INDEX + rd.CURRENT_MUSIC_INDEX] = this.round.sound.currentMusicIndex
+      fieldSave.array[rd.START_INDEX + rd.CURRENT_MUSIC_TIME] = Math.floor(game.sound.getMusicCurrentTime())
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_INDEX_NUMBER] = 0 // backgroundIndexNumber
+
+      // background layer
+      const isBgLayerUsing = this.round.bgLayer.getIsUsing()
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_X] = isBgLayerUsing ? this.round.bgLayer.getBackgroundPosition().x : this.round.bgLegacy.x
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_Y] = isBgLayerUsing ? this.round.bgLayer.getBackgroundPosition().y : this.round.bgLegacy.y
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_SPEEDX] = isBgLayerUsing ? this.round.bgLayer.getBackgroundSpeed().speedX : this.round.bgLegacy.backgroundSpeedX
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_SPEEDY] = isBgLayerUsing ? this.round.bgLayer.getBackgroundSpeed().speedY : this.round.bgLegacy.backgroundSpeedY
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_WIDTH] = isBgLayerUsing ? this.round.bgLayer.getBackgroundWidthHeight().width : 0
+      fieldSave.array[rd.START_INDEX + rd.BACKGROUND_HEIGHT] = isBgLayerUsing ? this.round.bgLayer.getBackgroundWidthHeight().height : 0
+
+      // bgLayer
+      const layer = this.round.bgLayer.getLayer()
+      for (let i = 0; i < 10 && i < layer.length; i++) {
+        const LINDEX = rd.START_INDEX + rd.BGLAYER_OFFSET_START + (i * rd.BGLAYER_OFFSET_COUNT)
+        fieldSave.array[LINDEX + rd.BGLAYER_X] = layer[i].x
+        fieldSave.array[LINDEX + rd.BGLAYER_Y] = layer[i].y
+        fieldSave.array[LINDEX + rd.BGLAYER_SPEEDX] = layer[i].speedX
+        fieldSave.array[LINDEX + rd.BGLAYER_SPEEDY] = layer[i].speedY
+        fieldSave.array[LINDEX + rd.BGLAYER_ALPHAEND] = layer[i].alphaEnd * 100 // 알파값은 0 ~ 1범위라 100배 해서 저장
+        fieldSave.array[LINDEX + rd.BGLAYER_ISSYNCHRONIZED] = layer[i].isSynchronized ? 1 : 0
+      }
+      
+
+      // extends input (temp code)
+      for (let i = 0; i < this.round.extendedMemory.length; i++) {
+        const EINDEX = rd.START_INDEX + rd.EXTENDS_START + i
+        fieldSave.array[EINDEX] = this.round.extendedMemory[i]
+      }
+    }
+
+    // player area
+    fieldSave.array[pl.START_INDEX + pl.X] = fieldState.playerObject.x
+    fieldSave.array[pl.START_INDEX + pl.Y] = fieldState.playerObject.y
+    fieldSave.array[pl.START_INDEX + pl.HP] = fieldState.playerObject.hp
+    fieldSave.array[pl.START_INDEX + pl.SHIELD] = fieldState.playerObject.shield
+    fieldSave.array[pl.START_INDEX + pl.SHIELDMAX] = fieldState.playerObject.shieldMax
+    fieldSave.array[pl.START_INDEX + pl.ATTACK_DELAY_COUNT] = fieldState.playerObject.attackDelayCount
+    fieldSave.array[pl.START_INDEX + pl.DIE_AFTER_DELAY_COUNT] = fieldState.playerObject.dieAfterDelayCount
+    fieldSave.array[pl.START_INDEX + pl.USING_SKILL_SLOTA] = fieldState.playerObject.usingSkillSlotA ? 1 : 0
+    fieldSave.array[pl.START_INDEX + pl.DISABLE] = fieldState.playerObject.disable ? 1 : 0
+
+    // player weapon
+    for (let i = 0; i < fieldState.playerObject.weaponSlot.length; i++) {
+      const WINDEX = pl.START_INDEX + pl.WEAPON + (i * 2)
+      fieldSave.array[WINDEX + pl.WEAPON_OFFSET_ID] = fieldState.playerObject.weaponSlot[i].id
+      fieldSave.array[WINDEX + pl.WEAPON_OFFSET_DELAYCOUNT] = fieldState.playerObject.weaponSlot[i].delayCount
+    }
+
+    // player skill
+    for (let i = 0; i < fieldState.playerObject.skillSlotA.length; i++) {
+      const SINDEX1 = pl.START_INDEX + pl.SKILL + (i * 4) 
+      const SINDEX2 = pl.START_INDEX + pl.SKILL + (i * 4) + (4 * 4) // skill B slot Position
+      // 스킬슬롯 A는 배열 0번 (0 ~ 3) 부터 시작한다고 가정함
+      // 스킬슬롯 B는 배열 4번 (4 ~ 7) 부터 시작한다고 가정함
+      fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_ID] = fieldState.playerObject.skillSlotA[i].id
+      fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_DELAY_COUNT] = fieldState.playerObject.skillSlotA[i].delayCount
+      fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_COOL_TIME_FRAME] = fieldState.playerObject.skillSlotA[i].coolTimeFrame
+      fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_REPEAT_COUNT] = fieldState.playerObject.skillSlotA[i].repeatCount
+
+      fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_ID] = fieldState.playerObject.skillSlotB[i].id
+      fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_DELAY_COUNT] = fieldState.playerObject.skillSlotB[i].delayCount
+      fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_COOL_TIME_FRAME] = fieldState.playerObject.skillSlotB[i].coolTimeFrame
+      fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_REPEAT_COUNT] = fieldState.playerObject.skillSlotB[i].repeatCount
+    }
+
+    // field data input
+    // 미정
+
+    // 필드 데이터는 다음 순서대로 입력합니다.
+    // enemy -> sprite (미정)
+    // sprite를 따로 처리할지 결정하지 못함.
+    // 지금은 enemy만 저장
+
+    const totalEnemyCount = fieldState.enemyObject.length
+    for (let i = 0; i < fieldState.enemyObject.length; i++) {
+      const NINDEX = ob.START_INDEX + (ob.TOTAL_SLOT_SIZE * i)
+      const enemy = fieldState.enemyObject[i]
+      fieldSave.array[NINDEX + ob.ID] = enemy.id
+      fieldSave.array[NINDEX + ob.OBJECT_TYPE] = enemy.objectType
+      fieldSave.array[NINDEX + ob.MAIN_TYPE] = enemy.mainType
+      fieldSave.array[NINDEX + ob.SUB_TYPE] = enemy.subType
+      fieldSave.array[NINDEX + ob.CREATE_ID] = enemy.createId
+      fieldSave.array[NINDEX + ob.STATE] = enemy.state
+      fieldSave.array[NINDEX + ob.X] = enemy.x
+      fieldSave.array[NINDEX + ob.Y] = enemy.y
+      fieldSave.array[NINDEX + ob.Z] = enemy.z
+      fieldSave.array[NINDEX + ob.MOVE_SPEED_X] = enemy.moveSpeedX
+      fieldSave.array[NINDEX + ob.MOVE_SPEED_Y] = enemy.moveSpeedY
+      fieldSave.array[NINDEX + ob.MOVE_DIRECTION_X] = enemy.moveDirectionX
+      fieldSave.array[NINDEX + ob.MOVE_DIRECTION_Y] = enemy.moveDirectionY
+      fieldSave.array[NINDEX + ob.FLIP] = enemy.flip
+      fieldSave.array[NINDEX + ob.DEGREE] = enemy.degree
+      fieldSave.array[NINDEX + ob.WIDTH] = enemy.width
+      fieldSave.array[NINDEX + ob.HEIGHT] = enemy.height
+      fieldSave.array[NINDEX + ob.DELAY] = enemy.delay == null ? 0 : enemy.delay.delay
+      fieldSave.array[NINDEX + ob.DELAY_COUNT] = enemy.delay == null ? 0 : enemy.delay.count
+      fieldSave.array[NINDEX + ob.MOVE_DELAY] = enemy.moveDelay == null ? 0 : enemy.moveDelay.delay
+      fieldSave.array[NINDEX + ob.MOVE_COUNT] = enemy.moveDelay == null ? 0 : enemy.moveDelay.count
+      fieldSave.array[NINDEX + ob.ATTACK_DELAY] = enemy.attackDelay == null ? 0 : enemy.attackDelay.delay
+      fieldSave.array[NINDEX + ob.ATTACK_COUNT] = enemy.attackDelay == null ? 0 : enemy.attackDelay.count
+      fieldSave.array[NINDEX + ob.STATE_DELAY] = enemy.stateDelay == null ? 0 : enemy.stateDelay.delay
+      fieldSave.array[NINDEX + ob.STATE_COUNT] = enemy.stateDelay == null ? 0 : enemy.stateDelay.count
+      fieldSave.array[NINDEX + ob.REPEAT_DELAY] = enemy.repeatDelay == null ? 0 : enemy.repeatDelay.delay
+      fieldSave.array[NINDEX + ob.REPEAT_COUNT] = enemy.repeatDelay == null ? 0 : enemy.repeatDelay.count
+      fieldSave.array[NINDEX + ob.ATTACK] = enemy.attack
+      fieldSave.array[NINDEX + ob.DEFENSE] = enemy.defense
+      fieldSave.array[NINDEX + ob.HP] = enemy.hp
+      fieldSave.array[NINDEX + ob.HP_MAX] = enemy.hpMax
+      fieldSave.array[NINDEX + ob.ELAPSED_FRAME] = enemy.elapsedFrame
+    }
+
+    // 
+    fieldSave.array[hs.OBJECT_COUNT] = totalEnemyCount
+
+    // 필드 전체 길이 저장
+    fieldSave.array[hs.TOTAL_LENGTH] = ob.START_INDEX + (ob.TOTAL_SLOT_SIZE * totalEnemyCount)
+  }
+
   /**
    * 저장할 데이터를 얻습니다.
    */
   static fieldSystemSaveData () {
+    this.fieldSystemSaveDataV055()
+
     // 무기는 저장 용량을 줄이기 위하여 스킬만 저장하도록 변경됩니다.
     // 일반 무기는 불러왔을 때 모두 삭제됩니다.
-    let weaponObject = fieldState.weaponObject
-    let weapon = []
-    for (let i = 0; i < weaponObject.length; i++) {
-      if (weaponObject[i].mainType === 'skill' || weaponObject[i].mainType === 'skillsub') {
-        weapon.push(weaponObject[i].fieldBaseSaveData())
-      }
-    }
+    // let weaponObject = fieldState.weaponObject
+    // let weapon = []
+    // for (let i = 0; i < weaponObject.length; i++) {
+    //   if (weaponObject[i].mainType === 'skill' || weaponObject[i].mainType === 'skillsub') {
+    //     weapon.push(weaponObject[i].fieldBaseSaveData())
+    //   }
+    // }
 
-    // 죽어있거나 삭제된 적은 저장하지 않습니다.
-    let enemyObject = fieldState.enemyObject
-    let enemy = []
-    for (let i = 0; i < enemyObject.length; i++) {
-      if (enemyObject[i].isDied || enemyObject[i].isDeleted) {
-        continue
-      } else {
-        enemy.push(enemyObject[i].fieldBaseSaveData())
-      }
-    }
+    // // 죽어있거나 삭제된 적은 저장하지 않습니다.
+    // let enemyObject = fieldState.enemyObject
+    // let enemy = []
+    // for (let i = 0; i < enemyObject.length; i++) {
+    //   if (enemyObject[i].isDied || enemyObject[i].isDeleted) {
+    //     continue
+    //   } else {
+    //     enemy.push(enemyObject[i].fieldBaseSaveData())
+    //   }
+    // }
 
-    let sprite = fieldState.spriteObject.map((data) => {
-      return data.fieldBaseSaveData()
-    })
+    // let sprite = fieldState.spriteObject.map((data) => {
+    //   return data.fieldBaseSaveData()
+    // })
     
-    let player = fieldState.playerObject.fieldBaseSaveData()
-    let round = this.getRoundSaveData()
-    let field = {
-      stateId: this.stateId,
-      fieldScore: this.fieldScore,
-      fieldGold: this.fieldGold,
-      totalScore: this.totalScore,
-      enimationFrame: this.scoreEnimationFrame,
-      exitDelayCount: this.exitDelayCount,
-      fieldItemCountList: this.fieldItemCountList,
-      fieldItemIdList: this.fieldItemIdList,
-    }
+    // let player = fieldState.playerObject.fieldBaseSaveData()
+    // let round = this.getRoundSaveData()
+    // let field = {
+    //   stateId: this.stateId,
+    //   fieldScore: this.fieldScore,
+    //   fieldGold: this.fieldGold,
+    //   totalScore: this.totalScore,
+    //   enimationFrame: this.scoreEnimationFrame,
+    //   exitDelayCount: this.exitDelayCount,
+    //   fieldItemCountList: this.fieldItemCountList,
+    //   fieldItemIdList: this.fieldItemIdList,
+    // }
     
-    return {
-      weapon,
-      enemy,
-      player,
-      round,
-      field,
-      sprite,
-    }
+    // return {
+    //   weapon,
+    //   enemy,
+    //   player,
+    //   round,
+    //   field,
+    //   sprite,
+    // }
   }
 
   /** 널 체크 문제 때문에 이 함수를 만듬... */
@@ -2197,76 +2540,268 @@ export class fieldSystem {
     }
   }
 
+  static fieldSystemLoadDataV055 () {
+    const hs = fieldSave.index.header
+    const pl = fieldSave.index.player
+    const rd = fieldSave.index.round
+    const ob = fieldSave.index.object
+    const fe = fieldSave.index.field
+
+    if (fieldSave.array[rd.START_INDEX + rd.ID] === 0) return
+    // 라운드 ID가 0이면 로드 진행 취소
+
+    this.stateId = fieldSave.array[fe.START_INDEX + fe.STATEID]
+    this.fieldScore = fieldSave.array[fe.START_INDEX + fe.FIELD_SCORE]
+    this.fieldGold = fieldSave.array[fe.START_INDEX + fe.FIELD_GOLD]
+    this.totalScore = fieldSave.array[fe.START_INDEX + fe.TOTAL_SCORE]
+    this.enimationFrame = fieldSave.array[fe.START_INDEX + fe.ENIMATION_FRAME]
+    this.exitDelayCount = fieldSave.array[fe.START_INDEX + fe.EXIT_DELAY_COUNT]
+    for (let i = 0; i < this.fieldItemIdList.length && i < fe.MAX_LENGTH - 8; i++) {
+      const FINDEX = fe.START_INDEX + fe.FIELD_ITEM_LIST + (i * 2)
+      if (fieldSave.array[FINDEX + fe.FIELD_ITEM_ID_OFFSET] === 0) continue
+
+      this.fieldItemIdList[i] = fieldSave.array[FINDEX + fe.FIELD_ITEM_ID_OFFSET]
+      this.fieldItemCountList[i] = fieldSave.array[FINDEX + fe.FIELD_ITEM_COUNT_OFFSET]
+    }
+
+    // 라운드 생성 및 시작, roundStart가 끝나면, round에 값이 할당됩니다.
+    this.round = this.createRound(fieldSave.array[rd.START_INDEX + rd.ID])
+    fieldState.playerObject.init()
+
+    // this.roundStart(fieldSave.array[rd.START_INDEX + rd.ID])
+    if (this.round == null) return
+
+    this.round.stat.id = fieldSave.array[rd.START_INDEX + rd.ID]
+    this.round.state = fieldSave.array[rd.START_INDEX + rd.STATE]
+    this.round.time.setCurrentTime(fieldSave.array[rd.START_INDEX + rd.CURRENT_TIME])
+    this.round.time.currentTimeFrame = fieldSave.array[rd.START_INDEX + rd.CURRENT_TIME_FRAME]
+    this.round.time.currentTimeTotalFrame = fieldSave.array[rd.START_INDEX + rd.CURRNET_TIME_TOTAL_FRAME]
+    this.round.time.currentTimePaused = fieldSave.array[rd.START_INDEX + rd.CURRENT_TIME_PAUSED] ? true : false
+    this.round.time.plusTime = fieldSave.array[rd.START_INDEX + rd.PLUS_TIME]
+    this.round.time.plusTimeFrame = fieldSave.array[rd.START_INDEX + rd.PLUS_TIME_FRAME]
+    this.round.sound.currentMusicIndex = fieldSave.array[rd.START_INDEX + rd.CURRENT_MUSIC_INDEX]
+    this.round.sound.loadCurrentMusicTime = fieldSave.array[rd.START_INDEX + rd.CURRENT_MUSIC_TIME]
+    // background index number
+    // background layer
+    let isBgLayerUsing = this.round.bgLayer.getIsUsing()
+    if (isBgLayerUsing) {
+      this.round.bgLayer.setBackgroundPosition(fieldSave.array[rd.START_INDEX + rd.BACKGROUND_X], fieldSave.array[rd.START_INDEX + rd.BACKGROUND_Y])
+      this.round.bgLayer.setBackgroundSpeed(fieldSave.array[rd.START_INDEX + rd.BACKGROUND_SPEEDX], fieldSave.array[rd.START_INDEX + rd.BACKGROUND_SPEEDY])
+      this.round.bgLayer.setBackgroundWidthHeight(fieldSave.array[rd.START_INDEX + rd.BACKGROUND_WIDTH], fieldSave.array[rd.START_INDEX + rd.BACKGROUND_HEIGHT])
+
+      // 배경 레이어 (bgLayer 전용)
+      let layer = this.round.bgLayer.getLayer()
+      for (let i = 0; i < 10 && i < layer.length; i++) {
+        const LINDEX = rd.START_INDEX + rd.BGLAYER_OFFSET_START + (i * rd.BGLAYER_OFFSET_COUNT)
+        layer[i].x = fieldSave.array[LINDEX + rd.BGLAYER_X]
+        layer[i].y = fieldSave.array[LINDEX + rd.BGLAYER_Y]
+        layer[i].speedX = fieldSave.array[LINDEX + rd.BGLAYER_SPEEDX]
+        layer[i].speedY = fieldSave.array[LINDEX + rd.BGLAYER_SPEEDY]
+
+        // 알파값은 100배해서 저장했기 때문에, 다시 100으로 나눠 복원
+        // 참고로, 알파는 setAlpha를 통해 수정해야 정상적인 형태로 적용합니다.
+        layer[i].setAlpha(fieldSave.array[LINDEX + rd.BGLAYER_ALPHAEND] / 100) 
+        layer[i].isSynchronized = fieldSave.array[LINDEX + rd.BGLAYER_ISSYNCHRONIZED] ? true : false
+      }
+
+      this.round.bgLayer.process()
+    } else {
+      // this.round.bgLegacy.imageSrc = saveData.backgroundImageSrc
+      this.round.bgLegacy.x = fieldSave.array[rd.START_INDEX + rd.BACKGROUND_X]
+      this.round.bgLegacy.y = fieldSave.array[rd.START_INDEX + rd.BACKGROUND_Y]
+      this.round.bgLegacy.backgroundSpeedX = fieldSave.array[rd.START_INDEX + rd.BACKGROUND_SPEEDX]
+      this.round.bgLegacy.backgroundSpeedY = fieldSave.array[rd.START_INDEX + rd.BACKGROUND_SPEEDY]
+    }
+
+    // round extendedmemory
+    for (let i = 0; i < this.round.extendedMemory.length; i++) {
+      const EINDEX = rd.START_INDEX + rd.EXTENDS_START + i
+      this.round.extendedMemory[i] = fieldSave.array[EINDEX]
+    }
+    this.round.readExtendedMemory() // 불러온 메모리를 읽어야 정상적으로 라운드 정보에 대입이 가능합니다.
+
+    fieldState.playerObject.x = fieldSave.array[pl.START_INDEX + pl.X]
+    fieldState.playerObject.y = fieldSave.array[pl.START_INDEX + pl.Y]
+    fieldState.playerObject.hp = fieldSave.array[pl.START_INDEX + pl.HP]
+    fieldState.playerObject.shield = fieldSave.array[pl.START_INDEX + pl.SHIELD]
+    fieldState.playerObject.shieldMax = fieldSave.array[pl.START_INDEX + pl.SHIELDMAX]
+    fieldState.playerObject.attackDelayCount = fieldSave.array[pl.START_INDEX + pl.ATTACK_DELAY_COUNT]
+    fieldState.playerObject.dieAfterDelayCount = fieldSave.array[pl.START_INDEX + pl.DIE_AFTER_DELAY_COUNT]
+    fieldState.playerObject.usingSkillSlotA = fieldSave.array[pl.START_INDEX + pl.USING_SKILL_SLOTA]
+    fieldState.playerObject.disable = fieldSave.array[pl.START_INDEX + pl.DISABLE] ? true : false
+
+    // player weapon
+    for (let i = 0; i < fieldState.playerObject.weaponSlot.length; i++) {
+      const WINDEX = pl.START_INDEX + pl.WEAPON + (i * 2)
+      fieldState.playerObject.weaponSlot[i].id = fieldSave.array[WINDEX + pl.WEAPON_OFFSET_ID]
+      fieldState.playerObject.weaponSlot[i].delayCount = fieldSave.array[WINDEX + pl.WEAPON_OFFSET_DELAYCOUNT]
+    }
+
+    // player skill
+    for (let i = 0; i < fieldState.playerObject.skillSlotA.length; i++) {
+      const SINDEX1 = pl.START_INDEX + pl.SKILL + (i * 4) 
+      const SINDEX2 = pl.START_INDEX + pl.SKILL + (i * 4) + (4 * 4) // skill B slot Position
+      // 스킬슬롯 A는 배열 0번 (0 ~ 3) 부터 시작한다고 가정함
+      // 스킬슬롯 B는 배열 4번 (4 ~ 7) 부터 시작한다고 가정함
+      fieldState.playerObject.skillSlotA[i].id = fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_ID]
+      fieldState.playerObject.skillSlotA[i].delayCount = fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_DELAY_COUNT]
+      fieldState.playerObject.skillSlotA[i].coolTimeFrame = fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_COOL_TIME_FRAME]
+      fieldState.playerObject.skillSlotA[i].repeatCount = fieldSave.array[SINDEX1 + pl.SKILL_OFFSET_REPEAT_COUNT]
+
+      fieldState.playerObject.skillSlotB[i].id = fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_ID]
+      fieldState.playerObject.skillSlotB[i].delayCount = fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_DELAY_COUNT]
+      fieldState.playerObject.skillSlotB[i].coolTimeFrame = fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_COOL_TIME_FRAME]
+      fieldState.playerObject.skillSlotB[i].repeatCount = fieldSave.array[SINDEX2 + pl.SKILL_OFFSET_REPEAT_COUNT]
+    }
+
+    fieldState.playerObject.setLoadData()
+
+    // object list
+    for (let i = 0; i < fieldSave.array[hs.OBJECT_COUNT]; i++) {
+      const OINDEX = fieldSave.OBJECT_OFFSET + (fieldSave.OBJECT_LENGTH * i)
+      const type = fieldSave.array[OINDEX + ob.OBJECT_TYPE]
+      let target = null
+      if (type === FieldData.objectType.ENEMY) {
+        target = fieldState.createEnemyObject(fieldSave.array[OINDEX + ob.ID], fieldSave.array[OINDEX + ob.X], fieldSave.array[OINDEX + ob.Y])
+      }
+
+      if (target != null) {
+        target.id = fieldSave.array[OINDEX + ob.ID]
+        target.objectType = fieldSave.array[OINDEX + ob.OBJECT_TYPE]
+        target.mainType = fieldSave.array[OINDEX + ob.MAIN_TYPE]
+        target.subType = fieldSave.array[OINDEX + ob.SUB_TYPE]
+        target.createId = fieldSave.array[OINDEX + ob.CREATE_ID]
+        target.state = fieldSave.array[OINDEX + ob.STATE]
+        target.x = fieldSave.array[OINDEX + ob.X]
+        target.y = fieldSave.array[OINDEX + ob.Y]
+        target.z = fieldSave.array[OINDEX + ob.Z]
+        target.moveSpeedX = fieldSave.array[OINDEX + ob.MOVE_SPEED_X]
+        target.moveSpeedY = fieldSave.array[OINDEX + ob.MOVE_SPEED_Y]
+        target.moveDirectionX = fieldSave.array[OINDEX + ob.MOVE_DIRECTION_X]
+        target.moveDirectionY = fieldSave.array[OINDEX + ob.MOVE_DIRECTION_Y]
+        target.flip = fieldSave.array[OINDEX + ob.FLIP]
+        target.degree = fieldSave.array[OINDEX + ob.DEGREE]
+        target.width = fieldSave.array[OINDEX + ob.WIDTH]
+        target.height = fieldSave.array[OINDEX + ob.HEIGHT]
+        if (fieldSave.array[OINDEX + ob.DELAY] !== 0) {
+          target.delay = new DelayData(fieldSave.array[OINDEX + ob.DELAY])
+          target.delay.count = fieldSave.array[OINDEX + ob.DELAY_COUNT]
+        }
+        if (fieldSave.array[OINDEX + ob.MOVE_DELAY] !== 0) {
+          target.moveDelay = new DelayData(fieldSave.array[OINDEX + ob.MOVE_DELAY])
+          target.moveDelay.count = fieldSave.array[OINDEX + ob.MOVE_COUNT]
+        }
+        if (fieldSave.array[OINDEX + ob.ATTACK_DELAY] !== 0) {
+          target.moveDelay = new DelayData(fieldSave.array[OINDEX + ob.ATTACK_DELAY])
+          target.moveDelay.count = fieldSave.array[OINDEX + ob.ATTACK_COUNT]
+        }
+        if (fieldSave.array[OINDEX + ob.STATE_DELAY] !== 0) {
+          target.moveDelay = new DelayData(fieldSave.array[OINDEX + ob.STATE_DELAY])
+          target.moveDelay.count = fieldSave.array[OINDEX + ob.STATE_COUNT]
+        }
+        if (fieldSave.array[OINDEX + ob.REPEAT_DELAY] !== 0) {
+          target.moveDelay = new DelayData(fieldSave.array[OINDEX + ob.REPEAT_DELAY])
+          target.moveDelay.count = fieldSave.array[OINDEX + ob.REPEAT_COUNT]
+        }
+
+        target.attack = fieldSave.array[OINDEX + ob.ATTACK]
+        target.defense = fieldSave.array[OINDEX + ob.DEFENSE]
+        target.hp = fieldSave.array[OINDEX + ob.HP]
+        target.hpMax = fieldSave.array[OINDEX + ob.HP_MAX]
+        target.elapsedFrame = fieldSave.array[OINDEX + ob.ELAPSED_FRAME]
+      }
+      
+    } // for end
+
+
+    // 게임을 불러온 이후, 유저의 정보를 강제로 mainSystem에 전송시킵니다.
+    fieldState.playerObject.processSendUserStat()
+
+    // 데이터 표시
+    gameVar.statLineText2.setStatLineText(this.getFieldDataString(), this.round?.time._currentTime, this.round?.stat.finishTime, '#D5F5E3' ,'#33ff8c')
+
+    // 게임을 불러오기 했다면, 일시정지 상태가 됩니다.
+    this.stateId = this.STATE_LOADING_PAUSE
+
+    // 라운드의 일부 요소를 처리하기 위해서 1프레임 강제 진행
+    this.round.process() 
+  }
+
   /**
    * 필드 상태를 불러옵니다. (반드시 JSON데이터를 parse해서 입력해야 합니다. string을 그냥 입력할 수 없습니다.)
    * @param {any} loadData parse된 JSON 데이터 (localStoarge에서 얻어온 값을 그대로 이 함수에 사용하지 마세요.)
    */
   static fieldSystemLoadData (loadData) {
-    if (typeof loadData === 'string') {
-      throw new Error('save data field is string, this data need using JSON.parse.')
-    }
+    this.fieldSystemLoadDataV055()
 
-    // JSON으로 얻은 오브젝트는 함수가 없기 때문에, 클래스로 데이터를 생성한 후에
-    // 세이브 데이터를 이용해 for in을 사용하여 각 객체들의 속성값을 넣어줍니다.
-    // 이 때문에 완벽한 복원은 불가능하며 (모든 데이터를 저장하지 않기 때문)
-    // 다만, 게임 자체는 원할하게 플레이 될 수 있도록 필요하다면 사용자가 추가적인 처리를 해야 합니다.
+    // return
+    // // 코드 사용 중단
 
-    for (let current of loadData.weapon) {
-      let newData = fieldState.createWeaponObject(current.id, current.x, current.y, current.attack)
-      if (newData != null) {
-        newData.fieldBaseLoadData(current)
-      }
-    }
+    // if (typeof loadData === 'string') {
+    //   throw new Error('save data field is string, this data need using JSON.parse.')
+    // }
 
-    for (let current of loadData.enemy) {
-      let newData = fieldState.createEnemyObject(current.id, current.x, current.y)
-      if (newData != null) {
-        newData.fieldBaseLoadData(current)
-      }
-    }
+    // // JSON으로 얻은 오브젝트는 함수가 없기 때문에, 클래스로 데이터를 생성한 후에
+    // // 세이브 데이터를 이용해 for in을 사용하여 각 객체들의 속성값을 넣어줍니다.
+    // // 이 때문에 완벽한 복원은 불가능하며 (모든 데이터를 저장하지 않기 때문)
+    // // 다만, 게임 자체는 원할하게 플레이 될 수 있도록 필요하다면 사용자가 추가적인 처리를 해야 합니다.
 
-    // enemyBullet은 구조상으로 완벽하게 복원할 수 없습니다.
-    // 적 내부에 데이터가 있는 구조이기 때문에 외부에서 이 값을 해석할 수 있는 방법이 없습니다.
-    // 따라서, enemyBullet이 복원되더라도 원래의 기능을 잃고 기본적인 총알의 기능만 수행하게 됩니다.
-    // for (let current of loadData.enemyBullet) {
-    //   let newData = fieldState.createEnemyBulletObject(current.id, current.x, current.y, current.attack)
-    //   for (let key in newData) {
-    //     newData[key] = current[key]
+    // for (let current of loadData.weapon) {
+    //   let newData = fieldState.createWeaponObject(current.id, current.x, current.y, current.attack)
+    //   if (newData != null) {
+    //     newData.fieldBaseLoadData(current)
     //   }
     // }
 
-    // 플레이어는 배열이 아닌 단일 객체
-    // 플레이어 객체는 fieldState에서 이미 생성되어 있으므로, 새로 생성할 필요는 없습니다.
-    fieldState.playerObject.init() // 플레이어 데이터 초기화
-    fieldState.playerObject.fieldBaseLoadData(loadData.player) // 저장된 데이터 입력
+    // for (let current of loadData.enemy) {
+    //   let newData = fieldState.createEnemyObject(current.id, current.x, current.y)
+    //   if (newData != null) {
+    //     newData.fieldBaseLoadData(current)
+    //   }
+    // }
 
-    // 라운드는 단일 객체, 다만 라운드 데이터 입력 전에 라운드 객체를 생성해야 합니다.
-    this.round = this.createRound(loadData.round.id)
-    this.roundId = loadData.round.id // 라운드의 id 재등록
-    if (this.round == null) {
-      throw new Error('round id error. game load fail')
-    }
+    // // enemyBullet은 구조상으로 완벽하게 복원할 수 없습니다.
+    // // 적 내부에 데이터가 있는 구조이기 때문에 외부에서 이 값을 해석할 수 있는 방법이 없습니다.
+    // // 따라서, enemyBullet이 복원되더라도 원래의 기능을 잃고 기본적인 총알의 기능만 수행하게 됩니다.
+    // // for (let current of loadData.enemyBullet) {
+    // //   let newData = fieldState.createEnemyBulletObject(current.id, current.x, current.y, current.attack)
+    // //   for (let key in newData) {
+    // //     newData[key] = current[key]
+    // //   }
+    // // }
 
-    this.round.baseRoundLoadData(loadData.round) // 저장된 데이터 불러오기
-    this.round.setLoadSpriteData(loadData.sprite) // 스프라이트 데이터 입력
-    this.round.loadProcessSprite() // 스프라이트 데이터 불러오기 (스프라이트 데이터를 입력해야만 정상 동작함)
-    this.round.resetLoadSpriteData() // 스프라이트 데이터 리셋
-    this.roundImageSoundLoad() // 라운드 이미지 사운드 로드
+    // // 플레이어는 배열이 아닌 단일 객체
+    // // 플레이어 객체는 fieldState에서 이미 생성되어 있으므로, 새로 생성할 필요는 없습니다.
+    // fieldState.playerObject.init() // 플레이어 데이터 초기화
+    // fieldState.playerObject.fieldBaseLoadData(loadData.player) // 저장된 데이터 입력
+
+    // // 라운드는 단일 객체, 다만 라운드 데이터 입력 전에 라운드 객체를 생성해야 합니다.
+    // this.round = this.createRound(loadData.round.id)
+    // this.roundId = loadData.round.id // 라운드의 id 재등록
+    // if (this.round == null) {
+    //   throw new Error('round id error. game load fail')
+    // }
+
+    // this.round.baseRoundLoadData(loadData.round) // 저장된 데이터 불러오기
+    // this.round.setLoadSpriteData(loadData.sprite) // 스프라이트 데이터 입력
+    // this.round.loadProcessSprite() // 스프라이트 데이터 불러오기 (스프라이트 데이터를 입력해야만 정상 동작함)
+    // this.round.resetLoadSpriteData() // 스프라이트 데이터 리셋
+    // this.roundImageSoundLoad() // 라운드 이미지 사운드 로드
     
-    // 필드 불러오기 (동시에 널체크)
-    if (loadData.field.stateId !== undefined) this.stateId = loadData.field.stateId
-    if (loadData.field.fieldScore !== undefined) this.fieldScore = loadData.field.fieldScore
-    if (loadData.field.totalScore !== undefined) this.totalScore = loadData.field.totalScore
-    if (loadData.field.enimationFrame !== undefined) this.enimationFrame = loadData.field.enimationFrame
-    if (loadData.field.exitDelayCount !== undefined) this.exitDelayCount = loadData.field.exitDelayCount
-    if (loadData.field.fieldGold !== undefined) this.fieldGold = loadData.field.fieldGold
-    if (loadData.field.fieldItemIdList !== undefined) this.fieldItemIdList = loadData.field.fieldItemIdList
-    if (loadData.field.fieldItemCountList!== undefined) this.fieldItemCountList = loadData.field.fieldItemCountList
+    // // 필드 불러오기 (동시에 널체크)
+    // if (loadData.field.stateId !== undefined) this.stateId = loadData.field.stateId
+    // if (loadData.field.fieldScore !== undefined) this.fieldScore = loadData.field.fieldScore
+    // if (loadData.field.totalScore !== undefined) this.totalScore = loadData.field.totalScore
+    // if (loadData.field.enimationFrame !== undefined) this.enimationFrame = loadData.field.enimationFrame
+    // if (loadData.field.exitDelayCount !== undefined) this.exitDelayCount = loadData.field.exitDelayCount
+    // if (loadData.field.fieldGold !== undefined) this.fieldGold = loadData.field.fieldGold
+    // if (loadData.field.fieldItemIdList !== undefined) this.fieldItemIdList = loadData.field.fieldItemIdList
+    // if (loadData.field.fieldItemCountList!== undefined) this.fieldItemCountList = loadData.field.fieldItemCountList
     
-    // 데이터 표시
-    gameVar.statLineText2.setStatLineText(this.getFieldDataString(), this.round.time._currentTime, this.round.stat.finishTime, '#D5F5E3' ,'#33ff8c')
+    // // 데이터 표시
+    // gameVar.statLineText2.setStatLineText(this.getFieldDataString(), this.round.time._currentTime, this.round.stat.finishTime, '#D5F5E3' ,'#33ff8c')
 
-    // 게임을 불러오기 했다면, 일시정지 상태가 됩니다.
-    this.stateId = this.STATE_LOADING_PAUSE
+    // // 게임을 불러오기 했다면, 일시정지 상태가 됩니다.
+    // this.stateId = this.STATE_LOADING_PAUSE
   }
 }

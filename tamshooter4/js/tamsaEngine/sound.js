@@ -518,6 +518,9 @@ export class SoundSystem {
     }
   }
 
+  /** 
+   * musicPause로 인하여 음악이 정지된 경우, musicResume으로 이를 해제시키고 음악을 계속 재생시킬 수 있습니다.
+   */
   musicResume () {
     if (this.currentMusic instanceof HTMLMediaElement) {
       // 음악을 특정 지점부터 다시 재생

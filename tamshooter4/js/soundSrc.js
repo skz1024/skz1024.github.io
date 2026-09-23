@@ -170,6 +170,7 @@ export class soundSrc {
     enemyDieTowerSquare: './sound/enemyDieTowerSquare.ogg',
     enemyDieTowerTapo: './sound/enemyDieTowerTapo.ogg',
     enemyDieTowerX: './sound/enemyDieTowerX.ogg',
+    enemyDieTowerHellgrey: './sound/enemyDieTowerHellgrey.ogg',
 
     // tower group 2 (3-2)
     enemyDieTowerBar1: './sound/enemyDieTowerBar1.ogg',
@@ -318,7 +319,7 @@ export class soundSrc {
     r2_3_a1_damage: './sound/round2_3_a1_damage.ogg',
     r2_3_a1_earthquake: './sound/round2_3_a1_earthquake.ogg',
     r2_3_a1_earthquakeDamage: './sound/round2_3_a1_earthquakeDamage.ogg',
-    r2_3_a1_toyHammer: './sound/round2_3_a1_toyHammer.ogg',
+    r2_3_a1_toyhammer: './sound/round2_3_a1_toyhammer.ogg',
     r2_3_a2_break: './sound/round2_3_a2_break.ogg',
     r2_3_a2_bomb: './sound/round2_3_a2_bomb.ogg',
     r2_3_b2_warp: './sound/round2_3_b2_warp.ogg',

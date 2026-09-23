@@ -8,7 +8,7 @@ import { imageDataInfo, imageSrc } from "./imageSrc.js"
 import { EnemyData } from "./dataEnemy.js"
 import { soundSrc } from "./soundSrc.js"
 import { game } from "./game.js"
-import { dataExportStatWeapon } from "./dataStat.js"
+import { dataExportStatPlayerSkill, dataExportStatWeapon } from "./dataStat.js"
 
 let graphicSystem = game.graphic
 let soundSystem = game.sound
@@ -20,7 +20,7 @@ export class WeaponData extends FieldData {
   constructor () {
     super()
     /** 공격력(해당 오브젝트의 공격력) */ this.attack = 0
-    /** 해당 객체의 기본 오브젝트 타입(임의 수정 불가능) */ this.objectType = 'weapon'
+    /** 해당 객체의 기본 오브젝트 타입(임의 수정 불가능) */ this.objectType = 0
     /** 무기의 기본 이동 방향 x축 = 오른쪽 */ this.moveDirectionX = FieldData.direction.RIGHT
     /** 무기의 기본 이동 방향 y축 = 아래쪽 */ this.moveDirectionY = FieldData.direction.DOWN
 
@@ -73,7 +73,6 @@ export class WeaponData extends FieldData {
 
     /**
      * 반복 딜레이 객체(딜레이가 없어도 생성됨, 다만 사용되지 않을뿐)
-     * @type {DelayData}
      */
     this.repeatDelay = new DelayData(1)
 
@@ -126,8 +125,8 @@ export class WeaponData extends FieldData {
     if (stat == null) return
 
     this.isChaseType = stat.isChaseType
-    this.mainType = stat.mainType
-    this.subType = stat.subType
+    // this.mainType = stat.mainType
+    // this.subType = stat.subType
     this.repeatCount = stat.repeatCount
     this.setMultiTarget(stat.isMultiTarget ? stat.maxTarget : 0) // 멀티타겟인경우 최대타겟, 아닌경우 0
     this.maxHitCount = stat.maxTarget
@@ -587,7 +586,7 @@ export class WeaponData extends FieldData {
 
       this.setMoveSpeed(speedX, speedY)
     } else {
-      this.setMoveDirection('right')
+      this.setMoveDirection(FieldData.direction.RIGHT)
       this.moveSpeedX = 20
       this.moveSpeedY = 0
     }
@@ -659,9 +658,9 @@ class MultyshotData extends WeaponData {
 }
 
 class MissileData extends WeaponData {
-  static STATE_NORMAL = 'normal'
-  static STATE_SPLASH = 'splash'
-  static STATE_ROCKET = 'rocket'
+  static STATE_NORMAL = 1
+  static STATE_SPLASH = 2
+  static STATE_ROCKET = 3
 
   constructor () {
     super()
@@ -714,7 +713,7 @@ class MissileData extends WeaponData {
    */
   processAttackNormal () {
     if (this.enemyHitedCheck()) {
-      this.state = 'splash'
+      this.state = MissileData.STATE_SPLASH
       this.moveSpeedX = 0
       this.moveSpeedY = 0
       this.isChaseType = false
@@ -741,7 +740,7 @@ class MissileRocket extends MissileData {
   constructor (option = [2]) {
     super()
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.missileRocket)
-    this.subType = 'missileRocket'
+    this.subType = 445
     this.id = ID.weapon.missileRocket
     this.moveSpeedX = 24
     this.moveSpeedY = option.length >= 1 ? option[0] : -2
@@ -843,7 +842,7 @@ class Laser extends WeaponData {
 class LaserBlue extends Laser {
   constructor () {
     super()
-    this.subType = 'laserBlue'
+    this.subType = 446
     this.id = ID.weapon.laserBlue
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.laserBlue)
     this.chaseMissLimit = 1 // 적 1번만 추적 가능
@@ -891,6 +890,8 @@ class Sapia extends WeaponData {
   constructor () {
     super()
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.sapia)
+    this.SUBTYPE_SAPIA = 492
+    this.subType = this.SUBTYPE_SAPIA
   }
 
   processMove () {
@@ -973,7 +974,7 @@ class Sapia extends WeaponData {
   }
 
   display () {
-    if (this.subType === 'sapia') {
+    if (this.subType === 492) {
       graphicSystem.fillLine(fieldState.getPlayerObject().x, fieldState.getPlayerObject().y, this.x, this.y, 'blue')
     }
     super.display()
@@ -989,7 +990,9 @@ class SapiaShot extends Sapia {
     super()
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.sapiaShot)
     this.id = ID.weapon.sapiaShot
-    this.subType = 'sapiaShot'
+
+    this.SUBTYPE_SHOT = 493
+    this.subType = this.SUBTYPE_SHOT
     this.targetX = option.length >= 1 ? option[0] : 0
     this.targetY = option.length >= 2 ? option[1] : 0
     
@@ -1063,16 +1066,16 @@ class ParapoShockwave extends Parapo {
    * 옵션:
    * 0. direction(방향)
    */
-  constructor (option = ['']) {
+  constructor (option = [0]) {
     super()
-    this.subType = 'shockwave'
+    this.subType = 0
     this.width = 100
     this.height = 100
     this.moveSpeedX = 0
     this.moveSpeedY = 0
 
     this.parapoEffect = null
-    let direction = option.length >= 1 ? option[0] : 'left'
+    let direction = option.length >= 1 ? option[0] : FieldData.direction.LEFT
     switch (direction) {
       default:
       case ParapoShockwave.direction.LEFT:
@@ -1113,26 +1116,25 @@ class BlasterMini extends Blaster {
   constructor () {
     super()
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.blasterMini)
-    this.subType = 'blastermini'
+    this.subType = 1
     this.isLineChase = true
   }
 }
 
 class Sidewave extends WeaponData {
   /**
-   * 옵션 목록
-   * 0. moveSpeedY = 0, 1. direction = 'right'
+   * 옵션은 다음과 같이 전달받습니다. ('right 4')
+   * 0. direction = 'right', moveSpeedY = 0, 
    */
   constructor (option = ['']) {
     super()
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.sidewave)
     this.moveSpeedX = 11
-    
-    let optionResult = option[0] != null ? option[0].split(' ') : [0, 'right']
+    let direction = option[0].split(' ')[0]
+    let moveSpeedY = Number(option[0].split(' ')[1])
 
-    this.moveSpeedY = Number(optionResult[1])
-
-    if (optionResult[0] === Sidewave.direction.LEFT) {
+    this.moveSpeedY = moveSpeedY
+    if (direction === 'left') {
       if (this.enimation) this.enimation.flip = 1 // 좌우 반전 (왼쪽으로 무기가 이동하므로)
       this.moveDirectionX = Sidewave.direction.LEFT
     }
@@ -1164,11 +1166,11 @@ class Ring extends WeaponData {
   }
 
   /** 링의 이동방향 및 속도 설정 */
-  setRingDirection (ringDirection, baseSpeed) {
+  setRingDirection (ringDirection = '', baseSpeed = 0) {
     switch (ringDirection) {
       case 'left':
         this.setMoveSpeed(baseSpeed, 0)
-        this.setMoveDirection(FieldData.direction.LEFT, '!')
+        this.setMoveDirection(FieldData.direction.LEFT, FieldData.direction.NODATA)
         break
       case 'leftup':
         this.setMoveSpeed(baseSpeed, baseSpeed)
@@ -1180,11 +1182,11 @@ class Ring extends WeaponData {
         break
       case 'up':
         this.setMoveSpeed(0, baseSpeed)
-        this.setMoveDirection('!', FieldData.direction.UP)
+        this.setMoveDirection(FieldData.direction.NODATA, FieldData.direction.UP)
         break
       case 'down':
         this.setMoveSpeed(0, baseSpeed)
-        this.setMoveDirection('!', FieldData.direction.DOWN)
+        this.setMoveDirection(FieldData.direction.NODATA, FieldData.direction.DOWN)
         break
       case 'rightup':
         this.setMoveSpeed(baseSpeed, baseSpeed)
@@ -1197,7 +1199,7 @@ class Ring extends WeaponData {
       case 'right':
       default:
         this.setMoveSpeed(baseSpeed, 0)
-        this.setMoveDirection(FieldData.direction.RIGHT, '!')
+        this.setMoveDirection(FieldData.direction.RIGHT, FieldData.direction.NODATA)
     }
   }
 
@@ -1391,20 +1393,21 @@ class R3TowerPink extends WeaponData {
 }
 
 class R3TowerPurple extends WeaponData {
+  static STATE_FRONT = 2
+  static STATE_CHASE = 3
+
   // 이 무기는 Round3 에서 사용하는 무기와 거의 동일함 (이미지만 약간 다름)
   constructor () {
     super()
     this.setAutoImageData(imageSrc.weapon.weapon, imageDataInfo.weapon.r3TowerPurple, 4)
-    this.STATE_FRONT = 'front'
-    this.STATE_CHASE = 'chase'
-    this.state = this.STATE_FRONT
+    this.state = R3TowerPurple.STATE_FRONT
     this.setMoveSpeed(10, 0)
   }
 
   processMove () {
     super.processMove()
-    if (this.state === this.STATE_FRONT && this.x > graphicSystem.CANVAS_WIDTH) {
-      this.state = this.STATE_CHASE
+    if (this.state === R3TowerPurple.STATE_FRONT && this.x > graphicSystem.CANVAS_WIDTH) {
+      this.state = R3TowerPurple.STATE_CHASE
       let randomEnemy = fieldState.getRandomEnemyObject()
       if (randomEnemy != null) {
         this.setMoveSpeedChaseLine(randomEnemy.centerX, randomEnemy.centerY, 20, 10)
@@ -1715,8 +1718,8 @@ class SkillSapia extends Sapia {
 }
 
 class SkillParapo extends Parapo {
-  static STATE_NORMAL = 'normal'
-  static STATE_SHOCKWAVE = 'shockwave'
+  static STATE_NORMAL = 1
+  static STATE_SHOCKWAVE = 2
 
   constructor () {
     super()
@@ -1809,8 +1812,8 @@ class SkillSidewave extends Sidewave {
 }
 
 class SkillSword extends WeaponData {
-  static STATE_MOVE = 'move'
-  static STATE_ATTACK = 'attack'
+  static STATE_MOVE = 2
+  static STATE_ATTACK = 3
 
   constructor () {
     super()
@@ -1910,9 +1913,9 @@ class SkillHyperBall extends WeaponData {
 }
 
 class SkillCriticalChaser extends WeaponData {
-  static STATE_CHASE = 'chase'
-  static STATE_NORMAL = 'normal'
-  static STATE_SPLASH = 'splash'
+  static STATE_CHASE = 2
+  static STATE_NORMAL = 1
+  static STATE_SPLASH = 4
 
   constructor () {
     super()
@@ -1972,8 +1975,8 @@ class SkillCriticalChaser extends WeaponData {
 class SkillPileBunker extends WeaponData {
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'pilebunker'
+    this.mainType = 14
+    this.subType = 24
     // no image and no enimation
 
     this.areaEffect = [
@@ -2042,9 +2045,9 @@ class SkillPileBunker extends WeaponData {
 }
 
 class SkillSantansu extends WeaponData {
-  static STATE_SANTANSU = 'santansu'
-  static STATE_MOVE_UP = 'moveup'
-  static STATE_ATTACK = 'attack'
+  static STATE_SANTANSU = 1
+  static STATE_MOVE_UP = 2
+  static STATE_ATTACK = 3
 
   /**
    * 옵션: 최종 도착 지점 X위치 범위 설정
@@ -2052,11 +2055,12 @@ class SkillSantansu extends WeaponData {
    */
   constructor (option = [Math.floor(Math.random() * 5)]) {
     super()
-    this.mainType = 'skill'
-    this.subType = 'santansu'
+    this.mainType = 1
+    this.subType = 2
     this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.santansu)
     this.repeatCount = 6
     this.repeatDelay = new DelayData(9)
+    
     this.state = SkillSantansu.STATE_SANTANSU
 
     let randomPositionNumber = option[0]
@@ -2064,7 +2068,13 @@ class SkillSantansu extends WeaponData {
     let finishXRange = 480
     this.finishX = Math.floor(Math.random() * finishXRange) + finishXMin
 
-    this.setMultiTarget(8)
+    // 산탄수는 무기 특성상 각 개체가 서로 스플래시 영역을 가지므로,
+    // maxTarget을 지정된 개수보다 5배 낮춰야 합니다.
+    // 그리고, 이 산탄수 무기는 maxTarget을 5배수로 설정해주세요.
+    let stat = dataExportStatPlayerSkill.get(this.id)
+    if (stat != null) {
+      this.setMultiTarget(this.maxTarget / stat.shot)
+    }
 
     this.santansuEffectUp = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSantansuUp, 160, 160)
     this.santansuEffectDown = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillSantansuDown, 160, 160)
@@ -2151,8 +2161,8 @@ class SkillSantansu extends WeaponData {
 class SkillWhiteflash extends WeaponData {
   constructor () {
     super()
-    this.mainType = 'skill'
-    this.subType = 'whiteflash'
+    this.mainType = 1
+    this.subType = 2
     this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.whiteflash, 6)
     this.setWidthHeight(120, 120)
     this.moveSpeedX = 30
@@ -2249,9 +2259,9 @@ class SkillRapid extends WeaponData {
 }
 
 class SkillSeondanil extends WeaponData {
-  static STATE_STOP = 'stop'
-  static STATE_ATTACK = 'attack'
-  static STATE_MINI = 'mini'
+  static STATE_STOP = 1
+  static STATE_ATTACK = 2
+  static STATE_MINI = 3
 
   constructor () {
     super()
@@ -2310,7 +2320,7 @@ class SkillSeondanilMini extends SkillSeondanil {
     super.processAttack()
 
     if (this.repeatCount === 0) {
-      fieldState.createEffectObject(this.hitEffect, this.x, this.y)
+      // fieldState.createEffectObject(this.hitEffect, this.x, this.y)
       soundSystem.play(soundSrc.skill.skillSeondanilHit)
     }
   }
@@ -2324,13 +2334,13 @@ class SkillHanjumeok extends WeaponData {
     this.moveSpeedX = 1
     this.setMultiTarget(10)
 
-    this.hitEffect = new CustomEffect(imageSrc.weapon.skill, imageDataInfo.skill.hanjumoek)
+    this.jumeokEffect = new CustomEffect(imageSrc.weapon.skill, imageDataInfo.skill.hanjumoek)
 
     let splashArea = this.getSplashArea()
     this.splashEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.skillHanjumeokSplash, splashArea.width, splashArea.height, 2)
 
-    this.STATE_JUMEOK = 'jumeok'
-    this.STATE_SPLASH = 'splash'
+    this.STATE_JUMEOK = 1
+    this.STATE_SPLASH = 2
     this.state = this.STATE_JUMEOK
   }
 
@@ -2394,9 +2404,9 @@ class SkillHanjumeok extends WeaponData {
       let effectY = current.y + Math.floor(Math.random() * 80) - 40
 
       // 이펙트의 각도를 수정하기 위해, 필드에서 생성된 이펙트를 가져옵니다.
-      let returnEffect = fieldState.createEffectObject(this.hitEffect, effectX, effectY)
+      let returnEffect = fieldState.createEffectObject(this.jumeokEffect, effectX, effectY)
 
-      // 에니메이션 각도 수정 (객체의 각도를 수정하는것은 의미가 없음.)
+      // 에니메이션 각도 수정 (애니메이션 형태기 때문에 에니메이션 각도를 수정해야 합니다.)
       if (returnEffect != null && returnEffect.enimation != null) {
         returnEffect.enimation.degree = Math.random() * 360
       }
@@ -2439,8 +2449,8 @@ class SkillBoomerang extends WeaponData {
 }
 
 class SkillMoon extends WeaponData {
-  static STATE_WAIT = 'wait'
-  static STATE_ATTACK = 'attack'
+  static STATE_WAIT = 1
+  static STATE_ATTACK = 2
 
   constructor () {
     super()
@@ -2448,20 +2458,35 @@ class SkillMoon extends WeaponData {
     this.setMoveSpeed(0, 0)
     this.attackDelay = new DelayData(60)
     this.state = SkillMoon.STATE_WAIT
+    this.attackElapsedFrame = 0
+    this.baseWidth = this.width
+    this.baseHeight = this.height
+
+    // 기본 공격력을 알고 있어야, 적 수에 따른 데미지를 재조정 할 수 있음.
+    this.baseAttack = 0 // 참고로 이것은 afterInit에서 대입해야 정상적으로 공격력을 받아옵니다.
+
+    this.attackMultipleTable = [1.1, 1.1, 0.9, 0.84, 0.76]
+    this.attackMultipleMin = 0.07
+    for (let i = 5; i <= 100; i++) {
+      // 데미지 공식: Math.floor(((300 * 1.1) + (enemyCount * 5))) / enemyCount
+      let multiple = Math.floor(300 * 1.1 + (i * 5)) / i / 100
+
+      this.attackMultipleTable.push(multiple)
+    }
 
     /** 
-     * 이 스킬이 공격 상태일 때, 배경색을 바꾸는 기준의 알파값
-     * 
-     * 이 값은, 일시 정지 상태일 때, 화면이 깜빡거리는걸 막기 위해 추가된 값입니다.
+     * 달 표시용 기준 알파값
      */
-    this.ALPHA_BASE = 0.1
+    this.ALPHA_BASE = 0.8
+  }
 
-    /** 이 스킬이 공격 상태일 때, 배경색을 바꾸는 실제 알파 값(기준값을 기준으로 이 값이 변화) */
-    this.alpha = 0.1
+  afterInit () {
+    // 실제 무기에 입력된 공격력 대입
+    this.baseAttack = this.attack
   }
 
   getSplashArea () {
-    // 개막장 스플래시 범위 (화면 전체를 넘어감, 기본사이즈 800x600)
+    // 개막장 스플래시 범위 (화면 전체를 넘어감, 게임 기본사이즈 800x600)
     return {
       x: -1000,
       y: -1000,
@@ -2485,27 +2510,32 @@ class SkillMoon extends WeaponData {
       this.state = SkillMoon.STATE_ATTACK
       soundSystem.play(soundSrc.skill.skillMoonAttack)
     } else if (this.state === SkillMoon.STATE_ATTACK && this.repeatDelay.check()) {
-      this.processHitObject(this.getSplashArea())
 
-      this.degree = Math.floor(Math.random() * 360)
-      let size = Math.floor(Math.random() * 40) + 180
+      // 적 수에 따라 공격력 배율 재설정
+      let enemyCount = fieldState.getEnemyObjectCount()
+      if (enemyCount >= this.attackMultipleTable.length) {
+        this.attack = Math.floor(this.baseAttack * this.attackMultipleMin)
+      } else {
+        this.attack = Math.floor(this.baseAttack * this.attackMultipleTable[enemyCount])
+      }
+
+      this.processHitObject(this.getSplashArea())
+      this.attackElapsedFrame++
+
+      this.degree += 30
+      let size = this.baseWidth + (this.attackElapsedFrame * 30)
       this.setWidthHeight(size, size)
-      this.alpha = Math.random() * this.ALPHA_BASE
+
+      let alpha = this.ALPHA_BASE - (this.attackElapsedFrame / 40)
+      this.alpha = alpha > 0.1 ? alpha : 0.1
     }
   }
 
   display () {
     let tempAlpha = this.alpha
-    this.alpha = 0.8
     super.display()
 
     this.alpha = tempAlpha
-    // 검은색 배경 화면 추가 출력
-    if (this.state === SkillMoon.STATE_ATTACK) {
-      graphicSystem.setAlpha(this.alpha)
-      graphicSystem.fillRect(0, 0, graphicSystem.CANVAS_WIDTH, graphicSystem.CANVAS_HEIGHT, 'black')
-      graphicSystem.setAlpha(1)
-    }
   }
 }
 
@@ -2644,22 +2674,14 @@ class SkillSabangtan extends Sabangtan {
 class SkillHabirant extends WeaponData {
   constructor () {
     super()
-    this.STATE_NORMAL = 'normal'
-    this.STATE_HABIRANT = 'habirnat'
+    this.STATE_NORMAL = 1
+    this.STATE_HABIRANT = 2
     this.state = this.STATE_NORMAL
     this.chaseMissCount = 480
     this.hitSoundSrc = soundSrc.skill.skillHabirantHit
     this.downDelay = new DelayData(16)
     this.hitEffect = new CustomEffect(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.kalnal)
-    this.ONESHOT_COUNT = 4
-  }
-
-  afterInit () {
-    // 공격력을 1/5로 정의
-    // 이것은, 적을 타격할 때 1번, 그리고 서브웨폰이 4번, 총 5번을 공격하기 때문
-    // 즉, 1회 공격당 최종적으로 5번을 타격함.
-    // 20% x 5 = 100%
-    this.attack = Math.floor(this.attack / 5)
+    /** 1타격당 서브 웨폰 생성 횟수 */ this.SUB_WEAPON_CREATE_COUNT = 4
   }
 
   processState () {
@@ -2689,9 +2711,11 @@ class SkillHabirant extends WeaponData {
       // 타겟이 잡힌 적은 일단 데미지를 무조건 받음
       this.processHitObject()
 
-      this.repeatCount -= this.ONESHOT_COUNT // 반복 횟수 4 감소
-      // 그후, 서브웨폰을 다시 재생성
-      for (let i = 0; i < this.ONESHOT_COUNT; i++) {
+      // 4개의 무기를 생성하므로, 서브웨폰 생성 개수만큼 반복 횟수를 감소시킵니다.
+      this.repeatCount -= this.SUB_WEAPON_CREATE_COUNT
+
+      // 그후, 서브웨폰을 반복 횟수만큼 재생성
+      for (let i = 0; i < this.SUB_WEAPON_CREATE_COUNT; i++) {
         fieldState.createWeaponObject(ID.weapon.skillHabirantSub, this.x, this.y, this.attack)
       }
     }
@@ -2701,8 +2725,8 @@ class SkillHabirant extends WeaponData {
 class SkillHabirantSub extends WeaponData {
   constructor () {
     super()
-    this.STATE_NORMAL = 'normal'
-    this.STATE_HABIRANT = 'habirnat'
+    this.STATE_NORMAL = 1
+    this.STATE_HABIRANT = 2
     this.state = this.STATE_NORMAL
     this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.habirant)
   }
@@ -2788,9 +2812,9 @@ class SkillCalibur extends WeaponData {
     this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.calibur)
     this.setWidthHeight(this.width * 2, this.height * 2)
 
-    this.STATE_UP = 'up'
-    this.STATE_DOWN = 'down'
-    this.STATE_CALIBUR = 'calibur'
+    this.STATE_UP = 1
+    this.STATE_DOWN = 2
+    this.STATE_CALIBUR = 3
     this.state = this.STATE_UP
 
     this.stateDelay = new DelayData(75)
@@ -2900,9 +2924,9 @@ class SkillSpeaker extends WeaponData {
     this.setAutoImageData(imageSrc.weapon.skill, imageDataInfo.skill.speaker, 2)
     this.effectWave = EnimationData.createEnimation(imageSrc.weapon.weaponEffect, imageDataInfo.weaponEffect.speaker, 0, 3)
     this.effectWave.setOutputSize(this.width * 3, this.height * 3)
-    this.STATE_DOWN = 'down'
-    this.STATE_ATTACK = 'attack'
-    this.STATE_EXIT = 'exit'
+    this.STATE_DOWN = 1
+    this.STATE_ATTACK = 2
+    this.STATE_EXIT = 3
     this.state = this.STATE_DOWN
     this.exitSpeed = 0
     this.exitDelay = 0
@@ -3160,8 +3184,8 @@ class SkillR3XSeries extends WeaponData {
     super()
     this.changeFrame = 48
     this.voiceSrc = ''
-    this.STATE_WAIT = 'wait'
-    this.STATE_ATTACK = 'attack'
+    this.STATE_WAIT = 1
+    this.STATE_ATTACK = 2
     this.state = this.STATE_WAIT
     this.WAIT_FRAME_1 = 42
     this.WAIT_FRAME_2 = 30
@@ -3451,7 +3475,7 @@ dataExportWeapon.set(ID.weapon.parapoShockWave, ParapoShockwave)
 dataExportWeapon.set(ID.weapon.sapia, Sapia)
 dataExportWeapon.set(ID.weapon.sapiaShot, SapiaShot)
 dataExportWeapon.set(ID.weapon.sidewave, Sidewave)
-dataExportWeapon.set(ID.weapon.subMultyshot, SubMultyshot)
+// dataExportWeapon.set(ID.weapon.subMultyshot, SubMultyshot)
 dataExportWeapon.set(ID.weapon.rapid, Rapid)
 dataExportWeapon.set(ID.weapon.ring, Ring)
 dataExportWeapon.set(ID.weapon.seondanil, Seondanil)
@@ -3484,7 +3508,7 @@ dataExportWeapon.set(ID.weapon.skillRapid, SkillRapid)
 dataExportWeapon.set(ID.weapon.skillRing, SkillRing)
 dataExportWeapon.set(ID.weapon.skillSeondanil, SkillSeondanil)
 dataExportWeapon.set(ID.weapon.skillSeondanilMini, SkillSeondanilMini)
-dataExportWeapon.set(ID.weapon.skillHanjumoek, SkillHanjumeok)
+dataExportWeapon.set(ID.weapon.skillHanjumeok, SkillHanjumeok)
 dataExportWeapon.set(ID.weapon.skillBoomerang, SkillBoomerang)
 dataExportWeapon.set(ID.weapon.skillMoon, SkillMoon)
 dataExportWeapon.set(ID.weapon.skillKalnal, SkillKalnal)
